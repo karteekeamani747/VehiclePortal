@@ -1,4 +1,3 @@
-using Microsoft.OpenApi;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +10,7 @@ using VehiclePortal.Models;
 // Stops JWT middleware remapping "role" to the long WS-Federation URI.
 // Without this [Authorize(Roles="SuperAdmin")] silently fails.
 System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+Microsoft.IdentityModel.JsonWebTokens.JsonWebTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,6 +60,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
+    options.MapInboundClaims = false;
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -117,6 +118,8 @@ var app = builder.Build();
 
 // ── 8. MIGRATIONS + SEED ──────────────────────────────────────────────────────
 await InitialiseDatabaseAsync(app);
+
+
 
 // ── 9. MIDDLEWARE PIPELINE ────────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
