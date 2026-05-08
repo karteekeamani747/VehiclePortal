@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SuperAdmin Login | Vehicle Portal</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #0f172a;
+            color: #f1f5f9;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 2rem;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: rgba(56,189,248,0.15);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .logo-text {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+
+        .logo-sub {
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+        }
+
+        .subtitle {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            margin-bottom: 2rem;
+        }
+
+        .field {
+            margin-bottom: 1.1rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.78rem;
+            color: #94a3b8;
+            margin-bottom: 0.4rem;
+        }
+
+        input {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #f1f5f9;
+            border-radius: 8px;
+            padding: 0.6rem 0.85rem;
+            font-size: 0.9rem;
+            transition: border-color 0.15s;
+        }
+
+            input:focus {
+                outline: none;
+                border-color: #38bdf8;
+            }
+
+            input::placeholder {
+                color: #475569;
+            }
+
+        .error-msg {
+            display: none;
+            background: rgba(248,113,113,0.1);
+            border: 1px solid rgba(248,113,113,0.3);
+            color: #f87171;
+            border-radius: 8px;
+            padding: 0.6rem 0.85rem;
+            font-size: 0.8rem;
+            margin-bottom: 1.1rem;
+        }
+
+        .btn {
+            width: 100%;
+            background: #38bdf8;
+            color: #0f172a;
+            border: none;
+            border-radius: 8px;
+            padding: 0.7rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s, opacity 0.15s;
+            margin-top: 0.5rem;
+        }
+
+            .btn:hover {
+                background: #7dd3fc;
+            }
+
+            .btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+        .footer {
+            margin-top: 1.5rem;
+            text-align: center;
+            font-size: 0.75rem;
+            color: #475569;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="logo">
+            <div class="logo-icon">&#9632;</div>
+            <div>
+                <div class="logo-text">Vehicle Portal</div>
+                <div class="logo-sub">Administration</div>
+            </div>
+        </div>
+
+        <h1>Sign in</h1>
+        <p class="subtitle">SuperAdmin access only</p>
+
+        <div id="error-msg" class="error-msg"></div>
+
+        <div class="field">
+            <label for="email">Email address</label>
+            <input type="email"
+                   id="email"
+                   placeholder="admin@vehicleportal.com"
+                   autocomplete="username">
+        </div>
+
+        <div class="field">
+            <label for="password">Password</label>
+            <input type="password"
+                   id="password"
+                   placeholder="••••••••"
+                   autocomplete="current-password">
+        </div>
+
+        <button id="login-btn" class="btn">Sign in</button>
+
+        <div class="footer">Vehicle Portal &copy; 2025</div>
+    </div>
+
+    <script src="/js/shared.js"></script>
+    <script>
+        // If already logged in as SuperAdmin go straight to dashboard
+        (function () {
+            const payload = PortalUtils.parseJwt(PortalUtils.getToken());
+            if (payload &&
+                PortalUtils.isTokenAlive(payload) &&
+                PortalUtils.isSuperAdmin(payload)) {
+                window.location.href = '/admin/dashboard.html';
+            }
+        })();
+
+        function showError(msg) {
+            const el = document.getElementById('error-msg');
+            el.textContent   = msg;
+            el.style.display = 'block';
+        }
+
+        function clearError() {
+            const el = document.getElementById('error-msg');
+            el.style.display = 'none';
+            el.textContent   = '';
+        }
+
+        async function handleLogin() {
+            clearError();
+
+            const email    = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const btn      = document.getElementById('login-btn');
+
+            if (!email || !password) {
+                showError('Please enter your email and password.');
+                return;
+            }
+
+            btn.disabled    = true;
+            btn.textContent = 'Signing in…';
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ email, password })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    showError(data.message || 'Invalid email or password.');
+                    return;
+                }
+
+                // Verify role before storing anything
+                const payload = PortalUtils.parseJwt(data.token);
+                if (!payload || !PortalUtils.isSuperAdmin(payload)) {
+                    showError('Access denied. SuperAdmin privileges required.');
+                    return;
+                }
+
+                // Save token and user then redirect
+                PortalUtils.saveToken(data.token);
+                PortalUtils.saveUser(data.user);
+
+                window.location.href = '/admin/dashboard.html';
+
+            } catch (err) {
+                console.error('Login error:', err);
+                showError('Could not reach the server. Check your connection.');
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = 'Sign in';
+            }
+        }
+
+        document.getElementById('login-btn')
+                .addEventListener('click', handleLogin);
+
+        document.getElementById('password')
+                .addEventListener('keydown', e => {
+                    if (e.key === 'Enter') handleLogin();
+                });
+    </script>
+</body>
+</html>
