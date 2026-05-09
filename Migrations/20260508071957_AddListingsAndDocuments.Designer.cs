@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VehiclePortal.Data;
 
@@ -10,9 +11,11 @@ using VehiclePortal.Data;
 namespace VehiclePortal.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260508071957_AddListingsAndDocuments")]
+    partial class AddListingsAndDocuments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.7");
@@ -294,55 +297,6 @@ namespace VehiclePortal.Migrations
                     b.ToTable("AuditLogs");
                 });
 
-            modelBuilder.Entity("VehiclePortal.Models.DeadLetterMessage", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FailureReason")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsReplayed")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("OutboxId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Payload")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("ReplayedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("RetryCount")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("EventType");
-
-                    b.HasIndex("IsReplayed");
-
-                    b.ToTable("DeadLetterMessages");
-                });
-
             modelBuilder.Entity("VehiclePortal.Models.Document", b =>
                 {
                     b.Property<int>("Id")
@@ -360,10 +314,6 @@ namespace VehiclePortal.Migrations
                     b.Property<string>("ExtractedVin")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("FileHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -376,10 +326,6 @@ namespace VehiclePortal.Migrations
 
                     b.Property<long>("FileSizeBytes")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("IdempotencyKey")
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsFromSftp")
                         .HasColumnType("INTEGER");
@@ -420,61 +366,13 @@ namespace VehiclePortal.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IdempotencyKey");
-
                     b.HasIndex("ListingId");
 
                     b.HasIndex("OcrStatus");
 
                     b.HasIndex("UploadedBy");
 
-                    b.HasIndex("FileHash", "UploadedBy");
-
                     b.ToTable("Documents");
-                });
-
-            modelBuilder.Entity("VehiclePortal.Models.IdempotencyLog", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Endpoint")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("IdempotencyKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ResponsePayload")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("StatusCode")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ExpiresAt");
-
-                    b.HasIndex("IdempotencyKey", "UserId")
-                        .IsUnique();
-
-                    b.ToTable("IdempotencyLogs");
                 });
 
             modelBuilder.Entity("VehiclePortal.Models.Listing", b =>
@@ -566,55 +464,6 @@ namespace VehiclePortal.Migrations
                     b.HasIndex("Make", "Model", "Year");
 
                     b.ToTable("Listings");
-                });
-
-            modelBuilder.Entity("VehiclePortal.Models.OutboxMessage", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LastError")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("NextRetryAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Payload")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("ProcessedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("RetryCount")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("NextRetryAt");
-
-                    b.HasIndex("Status");
-
-                    b.ToTable("OutboxMessages");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

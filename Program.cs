@@ -8,7 +8,6 @@ using VehiclePortal.Models;
 
 // MUST be before builder is created.
 // Stops JWT middleware remapping "role" to the long WS-Federation URI.
-// Without this [Authorize(Roles="SuperAdmin")] silently fails.
 System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 Microsoft.IdentityModel.JsonWebTokens.JsonWebTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
@@ -108,10 +107,39 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("MarketplaceUser", p => p.RequireRole("Seller", "Buyer"));
 });
 
-// ── 6. CONTROLLERS + SWAGGER ──────────────────────────────────────────────────
+// ── 6. SERVICES ───────────────────────────────────────────────────────────────
 builder.Services.AddControllers();
+
+// File storage — swap LocalFileStorage for S3FileStorage in production
+builder.Services.AddScoped<VehiclePortal.Services.IFileStorage,
+                            VehiclePortal.Services.LocalFileStorage>();
+
+// RabbitMQ publisher — singleton so one connection is shared across the app
+builder.Services.AddSingleton<VehiclePortal.Services.RabbitMqPublisher>();
+
+// Outbox worker — polls every 10s and publishes pending events to RabbitMQ
+builder.Services.AddHostedService<VehiclePortal.Workers.OutboxWorker>();
+
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.OpenApiInfo
+    {
+        Title = "Vehicle Portal API",
+        Version = "v1"
+    });
+
+    // Define the Bearer security scheme
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.ParameterLocation.Header,
+        Description = "Paste your JWT token here. Do NOT include the word Bearer."
+    });
+});
 
 // ── 7. BUILD ──────────────────────────────────────────────────────────────────
 var app = builder.Build();
@@ -119,14 +147,40 @@ var app = builder.Build();
 // ── 8. MIGRATIONS + SEED ──────────────────────────────────────────────────────
 await InitialiseDatabaseAsync(app);
 
-
-
 // ── 9. MIDDLEWARE PIPELINE ────────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
-    app.UseSwagger();
-    app.UseSwaggerUI();
+
+    app.UseSwagger(c =>
+    {
+        c.PreSerializeFilters.Add((swagger, httpReq) =>
+        {
+            // Add Bearer security to every operation
+            foreach (var path in swagger.Paths.Values)
+            {
+                foreach (var operation in path.Operations.Values)
+                {
+                    operation.Security ??= new List<Microsoft.OpenApi.OpenApiSecurityRequirement>();
+                    if (!operation.Security.Any())
+                    {
+                        var requirement = new Microsoft.OpenApi.OpenApiSecurityRequirement();
+                        requirement.Add(
+                            new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer"),
+                            new List<string>()
+                        );
+                        operation.Security.Add(requirement);
+                    }
+                }
+            }
+        });
+    });
+
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Vehicle Portal API v1");
+        c.InjectJavascript("/js/swagger-custom.js");
+    });
 }
 
 app.UseHttpsRedirection();
@@ -171,44 +225,100 @@ static async Task InitialiseDatabaseAsync(WebApplication app)
     if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPass))
     {
         logger.LogWarning("[Seed] InitialAdmin credentials not configured - skipping seed.");
-        return;
-    }
-
-    var existing = await userManager.FindByEmailAsync(adminEmail);
-    if (existing == null)
-    {
-        var admin = new ApplicationUser
-        {
-            UserName = adminEmail,
-            Email = adminEmail,
-            EmailConfirmed = true,
-            FirstName = "Super",
-            LastName = "Admin",
-            Role = "SuperAdmin",
-            IsActive = true
-        };
-
-        var result = await userManager.CreateAsync(admin, adminPass);
-        if (!result.Succeeded)
-        {
-            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-            logger.LogError("[Seed] Failed to create SuperAdmin: {Errors}", errors);
-            return;
-        }
-
-        await userManager.AddToRoleAsync(admin, "SuperAdmin");
-        logger.LogInformation("[Seed] SuperAdmin created: {Email}", adminEmail);
     }
     else
     {
-        if (!await userManager.IsInRoleAsync(existing, "SuperAdmin"))
+        var existing = await userManager.FindByEmailAsync(adminEmail);
+        if (existing == null)
         {
-            await userManager.AddToRoleAsync(existing, "SuperAdmin");
-            logger.LogInformation("[Seed] SuperAdmin role restored: {Email}", adminEmail);
+            var admin = new ApplicationUser
+            {
+                UserName = adminEmail,
+                Email = adminEmail,
+                EmailConfirmed = true,
+                FirstName = "Super",
+                LastName = "Admin",
+                Role = "SuperAdmin",
+                IsActive = true
+            };
+
+            var result = await userManager.CreateAsync(admin, adminPass);
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                logger.LogError("[Seed] Failed to create SuperAdmin: {Errors}", errors);
+            }
+            else
+            {
+                await userManager.AddToRoleAsync(admin, "SuperAdmin");
+                logger.LogInformation("[Seed] SuperAdmin created: {Email}", adminEmail);
+            }
         }
         else
         {
-            logger.LogInformation("[Seed] SuperAdmin already exists: {Email}", adminEmail);
+            if (!await userManager.IsInRoleAsync(existing, "SuperAdmin"))
+            {
+                await userManager.AddToRoleAsync(existing, "SuperAdmin");
+                logger.LogInformation("[Seed] SuperAdmin role restored: {Email}", adminEmail);
+            }
+            else
+            {
+                logger.LogInformation("[Seed] SuperAdmin already exists: {Email}", adminEmail);
+            }
         }
     }
+
+    // Seed test accounts in Development only
+    if (app.Environment.IsDevelopment())
+    {
+        var sellerEmail = config["TestSeller:Email"];
+        var sellerPass = config["TestSeller:Password"];
+        var buyerEmail = config["TestBuyer:Email"];
+        var buyerPass = config["TestBuyer:Password"];
+
+        if (!string.IsNullOrWhiteSpace(sellerEmail) && !string.IsNullOrWhiteSpace(sellerPass))
+            await SeedTestUserAsync(userManager, sellerEmail, sellerPass,
+                "John", "Seller", "Seller", logger);
+
+        if (!string.IsNullOrWhiteSpace(buyerEmail) && !string.IsNullOrWhiteSpace(buyerPass))
+            await SeedTestUserAsync(userManager, buyerEmail, buyerPass,
+                "Jane", "Buyer", "Buyer", logger);
+    }
 }
+
+// ── TEST USER SEEDING HELPER ──────────────────────────────────────────────────
+static async Task SeedTestUserAsync(
+    UserManager<ApplicationUser> userManager,
+    string email,
+    string password,
+    string firstName,
+    string lastName,
+    string role,
+    ILogger logger)
+{
+    var existing = await userManager.FindByEmailAsync(email);
+    if (existing != null) return;
+
+    var user = new ApplicationUser
+    {
+        UserName = email,
+        Email = email,
+        EmailConfirmed = true,
+        FirstName = firstName,
+        LastName = lastName,
+        Role = role,
+        IsActive = true
+    };
+
+    var result = await userManager.CreateAsync(user, password);
+    if (result.Succeeded)
+    {
+        await userManager.AddToRoleAsync(user, role);
+        logger.LogInformation("[Seed] Created test {Role}: {Email}", role, email);
+    }
+    else
+    {
+        var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+        logger.LogError("[Seed] Failed to create test {Role}: {Errors}", role, errors);
+    }
+}   
