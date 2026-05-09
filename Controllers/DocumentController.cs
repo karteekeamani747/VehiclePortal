@@ -91,6 +91,7 @@ namespace VehiclePortal.Controllers
                 fileHash = Convert.ToHexString(MD5.HashData(fileBytes)).ToLower();
             }
 
+            // Only block if the EXACT same file still exists (not deleted)
             var duplicate = await _db.Documents
                 .FirstOrDefaultAsync(d => d.FileHash == fileHash
                                        && d.UploadedBy == uploaderId);
@@ -204,8 +205,56 @@ namespace VehiclePortal.Controllers
             return Ok(responsePayload);
         }
 
+        // ── GET /api/document/mydocuments ─────────────────────────────────────
+        // Returns ALL documents uploaded by the logged-in seller,
+        // both linked and unlinked to listings.
+        [HttpGet("mydocuments")]
+        [Authorize(Policy = "SellerOnly")]
+        public async Task<IActionResult> GetMyDocuments(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20)
+        {
+            var uploaderId = GetCurrentUserId();
+            if (uploaderId == null) return Unauthorized();
+
+            var query = _db.Documents
+                .Where(d => d.UploadedBy == uploaderId)
+                .OrderByDescending(d => d.UploadedAt);
+
+            var total = await query.CountAsync();
+
+            var documents = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(d => new
+                {
+                    d.Id,
+                    d.ListingId,
+                    d.FileName,
+                    d.ContentType,
+                    d.FileSizeBytes,
+                    d.FileHash,
+                    d.Type,
+                    d.OcrStatus,
+                    d.ExtractedVin,
+                    d.UploadedAt,
+                    d.ProcessedAt,
+                    IsLinked = d.ListingId != null
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                total,
+                page,
+                pageSize,
+                totalPages = (int)Math.Ceiling((double)total / pageSize),
+                documents
+            });
+        }
+
         // ── GET /api/document/{id} ────────────────────────────────────────────
-        [HttpGet("{id}")]
+        [HttpGet("{id:int}")]
         [Authorize(Policy = "SellerOnly")]
         public async Task<IActionResult> GetDocument(int id)
         {
@@ -238,7 +287,7 @@ namespace VehiclePortal.Controllers
         }
 
         // ── GET /api/document/listing/{listingId} ─────────────────────────────
-        [HttpGet("listing/{listingId}")]
+        [HttpGet("listing/{listingId:int}")]
         [Authorize(Policy = "SellerOnly")]
         public async Task<IActionResult> GetListingDocuments(int listingId)
         {
@@ -273,7 +322,7 @@ namespace VehiclePortal.Controllers
         }
 
         // ── POST /api/document/{id}/link ──────────────────────────────────────
-        [HttpPost("{id}/link")]
+        [HttpPost("{id:int}/link")]
         [Authorize(Policy = "SellerOnly")]
         public async Task<IActionResult> LinkToListing(int id, [FromBody] LinkDocumentRequest request)
         {
@@ -299,26 +348,38 @@ namespace VehiclePortal.Controllers
         }
 
         // ── DELETE /api/document/{id} ─────────────────────────────────────────
-        [HttpDelete("{id}")]
-        [Authorize(Policy = "SellerOnly")]
+        // Seller can delete their own documents.
+        // SuperAdmin can delete any document.
+        [HttpDelete("{id:int}")]
+        [Authorize(Policy = "MarketplaceUser")]
         public async Task<IActionResult> DeleteDocument(int id)
         {
-            var uploaderId = GetCurrentUserId();
-            if (uploaderId == null) return Unauthorized();
+            var userId = GetCurrentUserId();
+            if (userId == null) return Unauthorized();
 
-            var document = await _db.Documents
-                .FirstOrDefaultAsync(d => d.Id == id && d.UploadedBy == uploaderId);
+            var isSuperAdmin = User.IsInRole("SuperAdmin");
+
+            // SuperAdmin can delete any document
+            // Seller can only delete their own
+            var document = isSuperAdmin
+                ? await _db.Documents.FirstOrDefaultAsync(d => d.Id == id)
+                : await _db.Documents.FirstOrDefaultAsync(d => d.Id == id
+                                                             && d.UploadedBy == userId);
 
             if (document == null)
                 return NotFound(new { message = "Document not found." });
 
+            // Delete physical file from storage
             await _storage.DeleteAsync(document.FilePath);
+
+            // Remove DB record — MD5 hash gone so same file can be re-uploaded
             _db.Documents.Remove(document);
             await _db.SaveChangesAsync();
 
-            _logger.LogInformation("[Document] Deleted document {Id}", id);
+            _logger.LogInformation(
+                "[Document] Deleted document {Id} by {UserId}", id, userId);
 
-            return Ok(new { message = "Document deleted." });
+            return Ok(new { message = "Document deleted successfully." });
         }
 
         // ── GET /api/document/file/{filename} ─────────────────────────────────
@@ -347,12 +408,6 @@ namespace VehiclePortal.Controllers
             User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
     }
 
-    // ── Request models ─────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// IFormFile must be wrapped in a class for Swashbuckle 10.x to correctly
-    /// generate the multipart/form-data schema in Swagger UI.
-    /// </summary>
     public class UploadDocumentRequest
     {
         public IFormFile File { get; set; } = null!;

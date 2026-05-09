@@ -82,7 +82,6 @@
             border-bottom: 1px solid #334155;
             padding: 0 2rem;
             display: flex;
-            gap: 0;
         }
 
         .tab-btn {
@@ -108,7 +107,7 @@
         /* ── Layout ── */
         .container {
             padding: 2rem;
-            max-width: 1100px;
+            max-width: 1200px;
             margin: 0 auto;
         }
 
@@ -125,6 +124,7 @@
             font-weight: 600;
         }
 
+        /* ── Buttons ── */
         .btn-primary {
             background: #38bdf8;
             color: #0f172a;
@@ -155,6 +155,37 @@
             .btn-secondary:hover {
                 border-color: #94a3b8;
                 color: #f1f5f9;
+            }
+
+        .btn-danger {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            border-radius: 6px;
+            padding: 0.3rem 0.7rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+            .btn-danger:hover {
+                border-color: #f87171;
+                color: #f87171;
+            }
+
+        .btn-link {
+            background: none;
+            border: none;
+            color: #38bdf8;
+            cursor: pointer;
+            font-size: 0.82rem;
+            padding: 0;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+            .btn-link:hover {
+                color: #7dd3fc;
             }
 
         /* ── Card ── */
@@ -218,29 +249,22 @@
             font-size: 0.75rem;
         }
 
-        .btn-danger {
-            background: transparent;
-            border: 1px solid #334155;
-            color: #94a3b8;
-            border-radius: 6px;
-            padding: 0.3rem 0.7rem;
-            font-size: 0.75rem;
-            cursor: pointer;
-            transition: border-color 0.15s, color 0.15s;
-        }
-
-            .btn-danger:hover {
-                border-color: #f87171;
-                color: #f87171;
-            }
-
-        /* ── Empty / loading states ── */
+        /* ── Empty state ── */
         .state-row td {
             text-align: center;
             padding: 3rem;
             color: #475569;
             font-size: 0.85rem;
         }
+
+        /* ── Tab panels ── */
+        .tab-panel {
+            display: none;
+        }
+
+            .tab-panel.active {
+                display: block;
+            }
 
         /* ── Modal ── */
         .modal-overlay {
@@ -259,7 +283,9 @@
             border-radius: 16px;
             padding: 2rem;
             width: 100%;
-            max-width: 420px;
+            max-width: 480px;
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
             .modal h2 {
@@ -311,6 +337,12 @@
                     background: #1e293b;
                 }
 
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
         .modal-actions {
             display: flex;
             justify-content: flex-end;
@@ -327,15 +359,6 @@
             background: rgba(56,189,248,0.1);
             color: #38bdf8;
         }
-
-        /* ── Tab panels ── */
-        .tab-panel {
-            display: none;
-        }
-
-            .tab-panel.active {
-                display: block;
-            }
 
         /* ── Pagination ── */
         .pagination {
@@ -368,17 +391,39 @@
                 opacity: 0.4;
                 cursor: not-allowed;
             }
+
+        /* ── Docs modal table ── */
+        .docs-table th {
+            text-align: left;
+            padding: 0.5rem 0.75rem;
+            color: #64748b;
+            font-size: 0.72rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid #334155;
+        }
+
+        .docs-table td {
+            padding: 0.65rem 0.75rem;
+            border-bottom: 1px solid #0f172a;
+            vertical-align: middle;
+        }
+
+        .docs-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .docs-table tbody tr:hover {
+            background: rgba(255,255,255,0.02);
+        }
     </style>
 </head>
 <body>
 
-    <!-- shared.js must load before the guard runs -->
     <script src="/js/shared.js"></script>
     <script>
-    // GUARD — redirects to login if no valid SuperAdmin token
-    if (!PortalUtils.requireRole('SuperAdmin')) {
-        throw new Error('Redirecting to login');
-    }
+        if (!PortalUtils.requireRole('SuperAdmin')) throw new Error('Access denied');
     </script>
 
     <!-- Navbar -->
@@ -397,6 +442,7 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('users')">Users</button>
         <button class="tab-btn" onclick="switchTab('audit')">Audit trail</button>
+        <button class="tab-btn" onclick="switchTab('dlq')">Dead Letter Queue</button>
     </div>
 
     <!-- Main -->
@@ -417,13 +463,14 @@
                         <tr>
                             <th>User</th>
                             <th>Role</th>
+                            <th>Documents</th>
                             <th>Status</th>
                             <th>Created</th>
                             <th style="text-align:right">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="users-tbody">
-                        <tr class="state-row"><td colspan="5">Loading…</td></tr>
+                        <tr class="state-row"><td colspan="6">Loading…</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -458,6 +505,30 @@
             </div>
         </div>
 
+        <!-- ── DLQ tab ── -->
+        <div id="tab-dlq" class="tab-panel">
+            <div class="section-header">
+                <span class="section-title">Dead Letter Queue</span>
+                <button class="btn-secondary" onclick="loadDlq()">Refresh</button>
+            </div>
+            <div class="card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Event type</th>
+                            <th>Retries</th>
+                            <th>Failure reason</th>
+                            <th style="text-align:right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dlq-tbody">
+                        <tr class="state-row"><td colspan="5">Select the DLQ tab to load.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 
     <!-- Create user modal -->
@@ -465,7 +536,7 @@
         <div class="modal">
             <h2>Create new user</h2>
             <div id="modal-error" class="modal-error"></div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+            <div class="grid-2">
                 <div class="field">
                     <label>First name</label>
                     <input id="m-firstname" placeholder="Jane">
@@ -497,209 +568,403 @@
         </div>
     </div>
 
+    <!-- User documents modal -->
+    <div id="docs-modal" class="modal-overlay" style="display:none;">
+        <div class="modal" style="max-width:720px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+                <h2 id="docs-modal-title" style="margin:0; font-size:0.95rem;">User Documents</h2>
+                <button class="btn-secondary" onclick="closeDocsModal()">Close</button>
+            </div>
+            <div id="docs-modal-error" class="modal-error"></div>
+            <table class="docs-table" style="width:100%;">
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Type</th>
+                        <th>OCR</th>
+                        <th>Uploaded</th>
+                        <th style="text-align:right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="docs-modal-tbody">
+                    <tr><td colspan="5" style="text-align:center; padding:2rem; color:#475569;">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <script>
-    // ── Init ──────────────────────────────────────────────────────────────────
-    const user = PortalUtils.getUser();
-    document.getElementById('nav-email').textContent = user?.email ?? '';
-    loadUsers();
-
-    // ── Tab switching ─────────────────────────────────────────────────────────
-    function switchTab(name) {
-        document.querySelectorAll('.tab-btn').forEach((b, i) => {
-            b.classList.toggle('active', ['users','audit'][i] === name);
-        });
-        document.querySelectorAll('.tab-panel').forEach(p => {
-            p.classList.toggle('active', p.id === `tab-${name}`);
-        });
-        if (name === 'audit' && auditCurrentPage === 0) loadAudit();
-    }
-
-    // ── Load users ────────────────────────────────────────────────────────────
-    async function loadUsers() {
-        const tbody = document.getElementById('users-tbody');
-        tbody.innerHTML = '<tr class="state-row"><td colspan="5">Loading…</td></tr>';
-
-        const res = await PortalUtils.apiFetch('/api/admin/users');
-        if (!res) return;
-
-        if (!res.ok) {
-            tbody.innerHTML = `<tr class="state-row"><td colspan="5">
-                Error ${res.status} — could not load users.</td></tr>`;
-            return;
-        }
-
-        const users = await res.json();
-        if (!users.length) {
-            tbody.innerHTML = '<tr class="state-row"><td colspan="5">No users found.</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = users.map(u => `
-            <tr>
-                <td>
-                    <div class="user-name">${PortalUtils.esc(u.firstName)} ${PortalUtils.esc(u.lastName)}</div>
-                    <div class="user-email">${PortalUtils.esc(u.email)}</div>
-                </td>
-                <td>${(u.roles || []).map(r => PortalUtils.roleBadge(r)).join(' ')}</td>
-                <td>
-                    ${u.isActive
-                        ? '<span class="status-active">&#9679; Active</span>'
-                        : '<span class="status-inactive">&#9679; Deactivated</span>'}
-                </td>
-                <td style="color:#64748b; font-size:0.78rem;">
-                    ${PortalUtils.formatDate(u.createdAt)}
-                </td>
-                <td style="text-align:right;">
-                    ${u.isActive ? `
-                    <button class="btn-danger"
-                            onclick="deactivateUser('${PortalUtils.esc(u.id)}',
-                                                    '${PortalUtils.esc(u.email)}')">
-                        Deactivate
-                    </button>` : '<span style="color:#475569;font-size:0.75rem;">—</span>'}
-                </td>
-            </tr>
-        `).join('');
-    }
-
-    // ── Create user ───────────────────────────────────────────────────────────
-    function openCreateModal() {
-        document.getElementById('create-modal').style.display = 'flex';
-        clearModalError();
-    }
-
-    function closeCreateModal() {
-        document.getElementById('create-modal').style.display = 'none';
-        ['m-firstname','m-lastname','m-email','m-password'].forEach(id => {
-            document.getElementById(id).value = '';
-        });
-        document.getElementById('m-role').value = 'SuperAdmin';
-        clearModalError();
-    }
-
-    function showModalError(msg) {
-        const el = document.getElementById('modal-error');
-        el.textContent   = msg;
-        el.style.display = 'block';
-    }
-
-    function clearModalError() {
-        const el = document.getElementById('modal-error');
-        el.style.display = 'none';
-        el.textContent   = '';
-    }
-
-    async function createUser() {
-        clearModalError();
-
-        const body = {
-            firstName: document.getElementById('m-firstname').value.trim(),
-            lastName:  document.getElementById('m-lastname').value.trim(),
-            email:     document.getElementById('m-email').value.trim(),
-            password:  document.getElementById('m-password').value,
-            role:      document.getElementById('m-role').value
-        };
-
-        if (!body.email || !body.password) {
-            showModalError('Email and password are required.');
-            return;
-        }
-
-        const res = await PortalUtils.apiFetch('/api/admin/users', {
-            method: 'POST',
-            body:   JSON.stringify(body)
-        });
-
-        if (!res) return;
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            showModalError(err.message || 'Failed to create user.');
-            return;
-        }
-
-        closeCreateModal();
-        PortalUtils.toast('User created successfully.', 'success');
+        // ── Init ──────────────────────────────────────────────────────────────────
+        const user = PortalUtils.getUser();
+        document.getElementById('nav-email').textContent = user?.email ?? '';
         loadUsers();
-    }
 
-    // ── Deactivate user ───────────────────────────────────────────────────────
-    async function deactivateUser(id, email) {
-        if (!confirm(`Deactivate ${email}?\n\nThey will no longer be able to log in.`)) return;
-
-        const res = await PortalUtils.apiFetch(`/api/admin/users/${id}`, {
-            method: 'DELETE'
-        });
-
-        if (!res) return;
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            PortalUtils.toast(err.message || 'Failed to deactivate user.', 'error');
-            return;
+        // ── Tab switching ─────────────────────────────────────────────────────────
+        function switchTab(name) {
+            const tabs = ['users', 'audit', 'dlq'];
+            document.querySelectorAll('.tab-btn').forEach((b, i) => {
+                b.classList.toggle('active', tabs[i] === name);
+            });
+            document.querySelectorAll('.tab-panel').forEach(p => {
+                p.classList.toggle('active', p.id === `tab-${name}`);
+            });
+            if (name === 'audit' && auditCurrentPage === 0) loadAudit();
+            if (name === 'dlq') loadDlq();
         }
 
-        PortalUtils.toast('User deactivated.', 'success');
-        loadUsers();
-    }
+        // ── Load users ────────────────────────────────────────────────────────────
+        async function loadUsers() {
+            const tbody = document.getElementById('users-tbody');
+            tbody.innerHTML = '<tr class="state-row"><td colspan="6">Loading…</td></tr>';
 
-    // ── Audit trail ───────────────────────────────────────────────────────────
-    let auditCurrentPage = 0;
-    const AUDIT_PAGE_SIZE = 20;
+            const res = await PortalUtils.apiFetch('/api/admin/users');
+            if (!res) return;
 
-    async function loadAudit(page = 1) {
-        const tbody = document.getElementById('audit-tbody');
-        tbody.innerHTML = '<tr class="state-row"><td colspan="5">Loading…</td></tr>';
+            if (res.status === 401) { PortalUtils.logout(); return; }
+            if (res.status === 403) {
+                tbody.innerHTML = '<tr class="state-row"><td colspan="6" style="color:#f87171;">403 – SuperAdmin role required.</td></tr>';
+                return;
+            }
+            if (!res.ok) {
+                tbody.innerHTML = '<tr class="state-row"><td colspan="6" style="color:#f87171;">Server error – could not load users.</td></tr>';
+                return;
+            }
 
-        const res = await PortalUtils.apiFetch(
-            `/api/admin/audit?page=${page}&pageSize=${AUDIT_PAGE_SIZE}`
-        );
+            const users = await res.json();
 
-        if (!res) return;
+            if (!users.length) {
+                tbody.innerHTML = '<tr class="state-row"><td colspan="6">No users found.</td></tr>';
+                return;
+            }
 
-        if (!res.ok) {
-            tbody.innerHTML = `<tr class="state-row"><td colspan="5">
-                Error ${res.status} — could not load audit logs.</td></tr>`;
-            return;
+            tbody.innerHTML = users.map(u => `
+                <tr>
+                    <td>
+                        <div class="user-name">${esc(u.firstName)} ${esc(u.lastName)}</div>
+                        <div class="user-email">${esc(u.email)}</div>
+                    </td>
+                    <td>${(u.roles || []).map(r => PortalUtils.roleBadge(r)).join(' ')}</td>
+                    <td>
+                        ${u.documentCount > 0
+                    ? `<button class="btn-link"
+                                    onclick="openUserDocuments('${esc(u.id)}', '${esc(u.email)}')">
+                                    ${u.documentCount} file${u.documentCount !== 1 ? 's' : ''}
+                               </button>`
+                    : '<span style="color:#475569; font-size:0.78rem;">0 files</span>'}
+                    </td>
+                    <td>
+                        ${u.isActive
+                    ? '<span class="status-active">&#9679; Active</span>'
+                    : '<span class="status-inactive">&#9679; Deactivated</span>'}
+                    </td>
+                    <td style="color:#64748b; font-size:0.78rem;">
+                        ${PortalUtils.formatDate(u.createdAt)}
+                    </td>
+                    <td style="text-align:right;">
+                        ${u.isActive ? `
+                        <button class="btn-danger"
+                                onclick="deactivateUser('${esc(u.id)}', '${esc(u.email)}')">
+                            Deactivate
+                        </button>` : '<span style="color:#475569; font-size:0.75rem;">—</span>'}
+                    </td>
+                </tr>
+            `).join('');
         }
 
-        const data = await res.json();
-        auditCurrentPage = page;
-
-        document.getElementById('audit-info').textContent =
-            `Page ${page} of ${data.totalPages} (${data.total} entries)`;
-
-        document.getElementById('audit-prev').disabled = page <= 1;
-        document.getElementById('audit-next').disabled = page >= data.totalPages;
-
-        if (!data.logs.length) {
-            tbody.innerHTML = '<tr class="state-row"><td colspan="5">No audit logs yet.</td></tr>';
-            return;
+        // ── Create user ───────────────────────────────────────────────────────────
+        function openCreateModal() {
+            document.getElementById('create-modal').style.display = 'flex';
+            clearModalError();
         }
 
-        tbody.innerHTML = data.logs.map(log => `
-            <tr>
-                <td style="color:#64748b; font-size:0.78rem; white-space:nowrap;">
-                    ${PortalUtils.formatDate(log.createdAt)}
-                </td>
-                <td>
-                    <div style="font-size:0.82rem;">${PortalUtils.esc(log.userEmail)}</div>
-                    <div style="font-size:0.72rem; color:#64748b;">${PortalUtils.esc(log.userRole)}</div>
-                </td>
-                <td><span class="audit-action">${PortalUtils.esc(log.action)}</span></td>
-                <td style="font-size:0.78rem; color:#94a3b8;">
-                    ${PortalUtils.esc(log.entityType)} ${PortalUtils.esc(log.entityId?.slice(0,8))}…
-                </td>
-                <td style="font-size:0.78rem; color:#94a3b8; max-width:200px; overflow:hidden;
-                            text-overflow:ellipsis; white-space:nowrap;">
-                    ${PortalUtils.esc(log.details || '—')}
-                </td>
-            </tr>
-        `).join('');
-    }
+        function closeCreateModal() {
+            document.getElementById('create-modal').style.display = 'none';
+            ['m-firstname', 'm-lastname', 'm-email', 'm-password'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+            document.getElementById('m-role').value = 'SuperAdmin';
+            clearModalError();
+        }
 
-    function auditPage(direction) {
-        loadAudit(auditCurrentPage + direction);
-    }
+        function showModalError(msg) {
+            const el = document.getElementById('modal-error');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        function clearModalError() {
+            const el = document.getElementById('modal-error');
+            el.style.display = 'none';
+            el.textContent = '';
+        }
+
+        async function createUser() {
+            clearModalError();
+
+            const body = {
+                firstName: document.getElementById('m-firstname').value.trim(),
+                lastName: document.getElementById('m-lastname').value.trim(),
+                email: document.getElementById('m-email').value.trim(),
+                password: document.getElementById('m-password').value,
+                role: document.getElementById('m-role').value
+            };
+
+            if (!body.email || !body.password) {
+                showModalError('Email and password are required.');
+                return;
+            }
+
+            const res = await PortalUtils.apiFetch('/api/admin/users', {
+                method: 'POST',
+                body: JSON.stringify(body)
+            });
+
+            if (!res) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                showModalError(err.message || 'Failed to create user.');
+                return;
+            }
+
+            closeCreateModal();
+            PortalUtils.toast('User created successfully.', 'success');
+            loadUsers();
+        }
+
+        // ── Deactivate user ───────────────────────────────────────────────────────
+        async function deactivateUser(id, email) {
+            if (!confirm(`Deactivate ${email}?\n\nThey will no longer be able to log in.`)) return;
+
+            const res = await PortalUtils.apiFetch(`/api/admin/users/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (!res) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                PortalUtils.toast(err.message || 'Failed to deactivate user.', 'error');
+                return;
+            }
+
+            PortalUtils.toast('User deactivated.', 'success');
+            loadUsers();
+        }
+
+        // ── User documents modal ──────────────────────────────────────────────────
+        let currentDocsUserId = null;
+
+        async function openUserDocuments(userId, email) {
+            currentDocsUserId = userId;
+            document.getElementById('docs-modal-title').textContent = `Documents — ${email}`;
+            document.getElementById('docs-modal').style.display = 'flex';
+            await loadUserDocuments(userId);
+        }
+
+        function closeDocsModal() {
+            document.getElementById('docs-modal').style.display = 'none';
+            currentDocsUserId = null;
+        }
+
+        async function loadUserDocuments(userId) {
+            const tbody = document.getElementById('docs-modal-tbody');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:2rem; color:#475569;">Loading…</td></tr>';
+
+            const res = await PortalUtils.apiFetch(
+                `/api/admin/documents?uploadedBy=${userId}&pageSize=50`
+            );
+
+            if (!res || !res.ok) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#f87171;">Error loading documents.</td></tr>';
+                return;
+            }
+
+            const data = await res.json();
+
+            if (!data.documents.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:2rem; color:#475569;">No documents found.</td></tr>';
+                return;
+            }
+
+            const ocrLabels = { 0: 'Pending', 1: 'Processing', 2: 'Completed', 3: 'Failed', 4: 'Skipped' };
+            const typeLabels = { 0: 'Title', 1: 'Registration', 2: 'Inspection', 3: 'Insurance', 4: 'Maintenance', 5: 'Accident', 99: 'Other' };
+            const ocrColors = { 0: '#94a3b8', 1: '#fbbf24', 2: '#34d399', 3: '#f87171', 4: '#94a3b8' };
+
+            tbody.innerHTML = data.documents.map(d => `
+                <tr>
+                    <td>
+                        <div style="font-weight:500; font-size:0.82rem;">${esc(d.fileName)}</div>
+                        <div style="font-size:0.72rem; color:#64748b;">
+                            ${d.listingId ? `Listing #${d.listingId}` : 'Not linked to a listing'}
+                        </div>
+                    </td>
+                    <td style="font-size:0.75rem; color:#94a3b8;">
+                        ${typeLabels[d.type] || 'Other'}
+                    </td>
+                    <td style="font-size:0.75rem; color:${ocrColors[d.ocrStatus] || '#94a3b8'};">
+                        ${ocrLabels[d.ocrStatus] || 'Unknown'}
+                    </td>
+                    <td style="font-size:0.75rem; color:#64748b;">
+                        ${PortalUtils.formatDate(d.uploadedAt)}
+                    </td>
+                    <td style="text-align:right;">
+                        <button class="btn-danger"
+                                onclick="adminDeleteDocument(${d.id}, '${esc(d.fileName)}')">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function adminDeleteDocument(id, fileName) {
+            if (!confirm(`Delete "${fileName}"?\n\nThis cannot be undone.`)) return;
+
+            const res = await PortalUtils.apiFetch(`/api/admin/documents/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (!res) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                PortalUtils.toast(err.message || 'Failed to delete document.', 'error');
+                return;
+            }
+
+            PortalUtils.toast('Document deleted.', 'success');
+            if (currentDocsUserId) await loadUserDocuments(currentDocsUserId);
+            loadUsers();
+        }
+
+        // ── Audit trail ───────────────────────────────────────────────────────────
+        let auditCurrentPage = 0;
+        const AUDIT_PAGE_SIZE = 20;
+
+        async function loadAudit(page = 1) {
+            const tbody = document.getElementById('audit-tbody');
+            tbody.innerHTML = '<tr class="state-row"><td colspan="5">Loading…</td></tr>';
+
+            const res = await PortalUtils.apiFetch(
+                `/api/admin/audit?page=${page}&pageSize=${AUDIT_PAGE_SIZE}`
+            );
+
+            if (!res) return;
+            if (!res.ok) {
+                tbody.innerHTML = `<tr class="state-row"><td colspan="5" style="color:#f87171;">Error ${res.status} – could not load audit logs.</td></tr>`;
+                return;
+            }
+
+            const data = await res.json();
+            auditCurrentPage = page;
+
+            document.getElementById('audit-info').textContent =
+                `Page ${page} of ${data.totalPages} (${data.total} entries)`;
+
+            document.getElementById('audit-prev').disabled = page <= 1;
+            document.getElementById('audit-next').disabled = page >= data.totalPages;
+
+            if (!data.logs.length) {
+                tbody.innerHTML = '<tr class="state-row"><td colspan="5">No audit logs yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.logs.map(log => `
+                <tr>
+                    <td style="color:#64748b; font-size:0.78rem; white-space:nowrap;">
+                        ${PortalUtils.formatDate(log.createdAt)}
+                    </td>
+                    <td>
+                        <div style="font-size:0.82rem;">${esc(log.userEmail)}</div>
+                        <div style="font-size:0.72rem; color:#64748b;">${esc(log.userRole)}</div>
+                    </td>
+                    <td><span class="audit-action">${esc(log.action)}</span></td>
+                    <td style="font-size:0.78rem; color:#94a3b8;">
+                        ${esc(log.entityType)} ${esc(log.entityId?.slice(0, 8))}…
+                    </td>
+                    <td style="font-size:0.78rem; color:#94a3b8; max-width:200px;
+                                overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        ${esc(log.details || '—')}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function auditPage(direction) {
+            loadAudit(auditCurrentPage + direction);
+        }
+
+        // ── Dead Letter Queue ─────────────────────────────────────────────────────
+        async function loadDlq() {
+            const tbody = document.getElementById('dlq-tbody');
+            tbody.innerHTML = '<tr class="state-row"><td colspan="5">Loading…</td></tr>';
+
+            const res = await PortalUtils.apiFetch('/api/admin/dlq?pageSize=50');
+            if (!res || !res.ok) {
+                tbody.innerHTML = '<tr class="state-row"><td colspan="5" style="color:#f87171;">Error loading DLQ.</td></tr>';
+                return;
+            }
+
+            const data = await res.json();
+
+            if (!data.messages.length) {
+                tbody.innerHTML = '<tr class="state-row"><td colspan="5">&#10003; No failed messages. DLQ is clear.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.messages.map(m => `
+                <tr>
+                    <td style="color:#64748b; font-size:0.78rem; white-space:nowrap;">
+                        ${PortalUtils.formatDate(m.createdAt)}
+                    </td>
+                    <td>
+                        <span class="audit-action">${esc(m.eventType)}</span>
+                    </td>
+                    <td style="font-size:0.78rem; color:#94a3b8;">
+                        ${m.retryCount} attempt${m.retryCount !== 1 ? 's' : ''}
+                    </td>
+                    <td style="font-size:0.78rem; color:#f87171; max-width:250px;
+                                overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        ${esc(m.failureReason || '—')}
+                    </td>
+                    <td style="text-align:right;">
+                        <button class="btn-secondary"
+                                style="font-size:0.75rem; padding:0.25rem 0.6rem;"
+                                onclick="replayDlq(${m.id})">
+                            Replay
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function replayDlq(id) {
+            if (!confirm('Replay this failed message?\n\nIt will be re-queued for publishing.')) return;
+
+            const res = await PortalUtils.apiFetch(`/api/admin/dlq/${id}/replay`, {
+                method: 'POST'
+            });
+
+            if (!res) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                PortalUtils.toast(err.message || 'Failed to replay message.', 'error');
+                return;
+            }
+
+            PortalUtils.toast('Message queued for replay.', 'success');
+            loadDlq();
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────────────────
+        function esc(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
     </script>
 </body>
 </html>

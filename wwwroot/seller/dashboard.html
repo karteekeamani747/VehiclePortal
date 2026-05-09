@@ -547,6 +547,7 @@
                             <th>OCR Status</th>
                             <th>Extracted VIN</th>
                             <th>Uploaded</th>
+                            <th style="text-align:right">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="docs-tbody">
@@ -912,39 +913,26 @@
     // ── Recent documents ──────────────────────────────────────────────────────
     async function loadRecentDocuments() {
         const tbody = document.getElementById('docs-tbody');
+        tbody.innerHTML = '<tr class="state-row"><td colspan="6">Loading…</td></tr>';
 
-        // Load documents for all listings
-        const listingsRes = await PortalUtils.apiFetch('/api/listing/my');
-        if (!listingsRes || !listingsRes.ok) return;
-
-        const listings = await listingsRes.json();
-        if (!listings.length) {
-            tbody.innerHTML = '<tr class="state-row"><td colspan="5">No documents yet.</td></tr>';
+        const res = await PortalUtils.apiFetch('/api/document/mydocuments?pageSize=20');
+        if (!res || !res.ok) {
+            tbody.innerHTML = '<tr class="state-row"><td colspan="6">Error loading documents.</td></tr>';
             return;
         }
 
-        // Collect documents from all listings
-        let allDocs = [];
-        for (const listing of listings.slice(0, 5)) {
-            const res = await PortalUtils.apiFetch(`/api/document/listing/${listing.id}`);
-            if (res && res.ok) {
-                const docs = await res.json();
-                allDocs = allDocs.concat(docs.map(d => ({ ...d, listingInfo: `${listing.year} ${listing.make} ${listing.model}` })));
-            }
-        }
+        const data = await res.json();
 
-        if (!allDocs.length) {
-            tbody.innerHTML = '<tr class="state-row"><td colspan="5">No documents uploaded yet.</td></tr>';
+        if (!data.documents.length) {
+            tbody.innerHTML = '<tr class="state-row"><td colspan="6">No documents uploaded yet.</td></tr>';
             return;
         }
 
-        allDocs.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-
-        tbody.innerHTML = allDocs.slice(0, 20).map(d => `
+        tbody.innerHTML = data.documents.map(d => `
             <tr>
                 <td>
                     <div style="font-weight:500; font-size:0.82rem;">${esc(d.fileName)}</div>
-                    <div class="meta">${esc(d.listingInfo || '—')}</div>
+                    <div class="meta">${d.isLinked ? `Linked to listing #${d.listingId}` : '— Not linked to a listing'}</div>
                 </td>
                 <td style="font-size:0.78rem; color:#94a3b8;">${docTypeName(d.type)}</td>
                 <td>${ocrBadge(d.ocrStatus)}</td>
@@ -954,8 +942,32 @@
                         : '<span class="meta">—</span>'}
                 </td>
                 <td class="meta">${PortalUtils.formatDate(d.uploadedAt)}</td>
+                <td style="text-align:right;">
+                    <button class="btn-danger" onclick="deleteDocument(${d.id}, '${esc(d.fileName)}')">
+                        Delete
+                    </button>
+                </td>
             </tr>
         `).join('');
+    }
+
+    async function deleteDocument(id, fileName) {
+        if (!confirm(`Delete "${fileName}"?\n\nYou can re-upload this file after deletion.`)) return;
+
+        const res = await PortalUtils.apiFetch(`/api/document/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (!res) return;
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            PortalUtils.toast(err.message || 'Failed to delete document.', 'error');
+            return;
+        }
+
+        PortalUtils.toast('Document deleted. You can now re-upload it.', 'success');
+        loadRecentDocuments();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
