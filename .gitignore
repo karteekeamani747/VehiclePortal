@@ -361,3 +361,31 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# .NET
+bin/
+obj/
+*.user
+.vs/
+
+# Secrets NEVER commit these
+.env
+*.pfx
+*.p12
+appsettings.Development.json
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Uploads
+uploads/
+
+# Docker
+# docker-compose.override.yml can contain local overrides, don't commit it
+docker-compose.override.yml
+
+# OS
+.DS_Store
+Thumbs.db

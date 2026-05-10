@@ -1,0 +1,52 @@
+services:
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: vehicleportal-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: vehicleportal
+      RABBITMQ_DEFAULT_PASS: Admin@2025!!
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  vehicleportal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vehicleportal-app
+    ports:
+      - "5000:8080"    # HTTP  → http://localhost:5000
+      - "7001:8081"    # HTTPS → https://localhost:7001
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ASPNETCORE_HTTPS_PORTS: "8081"
+      ConnectionStrings__DefaultConnection: "Data Source=/app/data/vehicle_portal.db"
+      Jwt__Issuer: "https://localhost:7001"
+      Jwt__Audience: "https://localhost:7001"
+      # Cert path inside the container — mounted from host below
+      ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/VehiclePortal.pfx"
+    env_file:
+      - .env
+    volumes:
+      - app_data:/app/data
+      - app_uploads:/app/uploads
+      # Mount the dev cert from your Windows machine into the container
+      - ${USERPROFILE}/.aspnet/https:/https:ro
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  rabbitmq_data:
+  app_data:
+  app_uploads:
