@@ -14,6 +14,7 @@ namespace VehiclePortal.Data
         public DbSet<OutboxMessage> OutboxMessages { get; set; }
         public DbSet<DeadLetterMessage> DeadLetterMessages { get; set; }
         public DbSet<IdempotencyLog> IdempotencyLogs { get; set; }
+        public DbSet<Offer> Offers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -129,6 +130,47 @@ namespace VehiclePortal.Data
                 entity.HasIndex(i => new { i.IdempotencyKey, i.UserId }).IsUnique();
                 // Index for cleanup job that removes expired entries
                 entity.HasIndex(i => i.ExpiresAt);
+            });
+
+            // ── Offer ─────────────────────────────────────────────────────────────────
+            builder.Entity<Offer>(entity =>
+            {
+                entity.HasKey(o => o.Id);
+                entity.Property(o => o.BuyerId).HasMaxLength(450).IsRequired();
+                entity.Property(o => o.SellerId).HasMaxLength(450).IsRequired();
+                entity.Property(o => o.Amount).HasPrecision(18, 2);
+                entity.Property(o => o.Status).HasConversion<int>();
+                entity.Property(o => o.IdempotencyKey).HasMaxLength(100);
+
+                // Buyer can have multiple offers on different listings
+                entity.HasIndex(o => o.BuyerId);
+
+                // Seller queries all offers on their listings
+                entity.HasIndex(o => o.SellerId);
+
+                // Query offers by listing
+                entity.HasIndex(o => o.ListingId);
+
+                // Query offers by status
+                entity.HasIndex(o => o.Status);
+
+                // Idempotency key lookup
+                entity.HasIndex(o => o.IdempotencyKey);
+
+                entity.HasOne(o => o.Listing)
+                      .WithMany()
+                      .HasForeignKey(o => o.ListingId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(o => o.Buyer)
+                      .WithMany()
+                      .HasForeignKey(o => o.BuyerId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(o => o.Seller)
+                      .WithMany()
+                      .HasForeignKey(o => o.SellerId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
         }
     }

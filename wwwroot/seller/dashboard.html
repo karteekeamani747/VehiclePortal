@@ -434,7 +434,7 @@
 
     <script src="/js/shared.js"></script>
     <script>
-    if (!PortalUtils.requireRole('Seller')) throw new Error('Redirecting');
+        if (!PortalUtils.requireRole('Seller')) throw new Error('Redirecting');
     </script>
 
     <!-- Navbar -->
@@ -461,6 +461,7 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('listings')">My Listings</button>
         <button class="tab-btn" onclick="switchTab('upload')">Upload Documents</button>
+        <button class="tab-btn" onclick="switchTab('offers')">Offers</button>
     </div>
 
     <!-- Main -->
@@ -567,6 +568,42 @@
 
     </div>
 
+    <!-- ── Offers tab ── -->
+    <div id="tab-offers" class="tab-panel">
+        <div class="section-header">
+            <span class="section-title">Incoming offers</span>
+            <button class="btn-secondary" onclick="loadOffers()">Refresh</button>
+        </div>
+
+        <div class="field">
+            <label>Filter by listing</label>
+            <select id="offers-listing-filter" onchange="loadOffers()"
+                    style="background:#0f172a; border:1px solid #334155; color:#f1f5f9;
+                       border-radius:8px; padding:0.5rem 0.85rem; font-size:0.85rem;">
+                <option value="">All listings</option>
+            </select>
+        </div>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Buyer</th>
+                        <th>Listing</th>
+                        <th>Offer amount</th>
+                        <th>Message</th>
+                        <th>Status</th>
+                        <th>Placed</th>
+                        <th style="text-align:right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="offers-tbody">
+                    <tr class="state-row"><td colspan="7">Select Offers tab to load.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- Create listing modal -->
     <div id="create-modal" class="modal-overlay" style="display:none;">
         <div class="modal">
@@ -642,380 +679,559 @@
     </div>
 
     <script>
-    // ── Init ──────────────────────────────────────────────────────────────────
-    const user = PortalUtils.getUser();
-    document.getElementById('nav-email').textContent = user?.email ?? '';
-    loadListings();
-    loadListingOptions();
-
-    // ── Tab switching ─────────────────────────────────────────────────────────
-    function switchTab(name) {
-        document.querySelectorAll('.tab-btn').forEach((b, i) => {
-            b.classList.toggle('active', ['listings','upload'][i] === name);
-        });
-        document.querySelectorAll('.tab-panel').forEach(p => {
-            p.classList.toggle('active', p.id === `tab-${name}`);
-        });
-        if (name === 'upload') loadRecentDocuments();
-    }
-
-    // ── Load listings ─────────────────────────────────────────────────────────
-    async function loadListings() {
-        const tbody = document.getElementById('listings-tbody');
-        tbody.innerHTML = '<tr class="state-row"><td colspan="6">Loading…</td></tr>';
-
-        const res = await PortalUtils.apiFetch('/api/listing/my');
-        if (!res) return;
-
-        if (!res.ok) {
-            tbody.innerHTML = `<tr class="state-row"><td colspan="6">Error loading listings.</td></tr>`;
-            return;
-        }
-
-        const listings = await res.json();
-
-        if (!listings.length) {
-            tbody.innerHTML = '<tr class="state-row"><td colspan="6">No listings yet. Create your first one!</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = listings.map(l => `
-            <tr>
-                <td>
-                    <div style="font-weight:500">${esc(l.year)} ${esc(l.make)} ${esc(l.model)}</div>
-                    <div class="meta">${esc(l.color)} · ${l.mileage?.toLocaleString()} mi</div>
-                </td>
-                <td><span class="vin-tag">${esc(l.vin)}</span></td>
-                <td>$${Number(l.askingPrice).toLocaleString()}</td>
-                <td>${statusBadge(l.status)}</td>
-                <td class="meta">${PortalUtils.formatDate(l.createdAt)}</td>
-                <td style="text-align:right; display:flex; gap:0.4rem; justify-content:flex-end;">
-                    ${l.status === 0 ? `
-                    <button class="btn-success" onclick="publishListing(${l.id})">Publish</button>` : ''}
-                    ${l.status !== 2 && !l.isDeleted ? `
-                    <button class="btn-danger" onclick="deleteListing(${l.id})">Delete</button>` : ''}
-                </td>
-            </tr>
-        `).join('');
-    }
-
-    // ── Create listing ────────────────────────────────────────────────────────
-    function openCreateModal() {
-        document.getElementById('create-modal').style.display = 'flex';
-        clearModalError();
-    }
-
-    function closeCreateModal() {
-        document.getElementById('create-modal').style.display = 'none';
-        clearModalError();
-    }
-
-    function showModalError(msg) {
-        const el = document.getElementById('modal-error');
-        el.textContent   = msg;
-        el.style.display = 'block';
-    }
-
-    function clearModalError() {
-        const el = document.getElementById('modal-error');
-        el.style.display = 'none';
-        el.textContent   = '';
-    }
-
-    document.getElementById('m-accidents').addEventListener('change', function () {
-        document.getElementById('accident-details-field').style.display =
-            this.checked ? 'block' : 'none';
-    });
-
-    async function createListing() {
-        clearModalError();
-
-        const body = {
-            vin:             document.getElementById('m-vin').value.trim().toUpperCase(),
-            make:            document.getElementById('m-make').value.trim(),
-            model:           document.getElementById('m-model').value.trim(),
-            year:            parseInt(document.getElementById('m-year').value),
-            color:           document.getElementById('m-color').value.trim(),
-            mileage:         parseInt(document.getElementById('m-mileage').value),
-            askingPrice:     parseFloat(document.getElementById('m-price').value),
-            zipCode:         document.getElementById('m-zip').value.trim(),
-            hasAccidents:    document.getElementById('m-accidents').checked,
-            accidentDetails: document.getElementById('m-accident-details').value.trim(),
-            description:     document.getElementById('m-description').value.trim()
-        };
-
-        if (!body.vin || !body.make || !body.model || !body.year || !body.color || !body.zipCode) {
-            showModalError('Please fill in all required fields.');
-            return;
-        }
-
-        if (body.vin.length !== 17) {
-            showModalError('VIN must be exactly 17 characters.');
-            return;
-        }
-
-        const res = await PortalUtils.apiFetch('/api/listing', {
-            method: 'POST',
-            body:   JSON.stringify(body)
-        });
-
-        if (!res) return;
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            showModalError(err.message || 'Failed to create listing.');
-            return;
-        }
-
-        closeCreateModal();
-        PortalUtils.toast('Listing saved as draft.', 'success');
+        // ── Init ──────────────────────────────────────────────────────────────────
+        const user = PortalUtils.getUser();
+        document.getElementById('nav-email').textContent = user?.email ?? '';
         loadListings();
         loadListingOptions();
-    }
 
-    // ── Publish listing ───────────────────────────────────────────────────────
-    async function publishListing(id) {
-        if (!confirm('Publish this listing? It will be visible to all buyers.')) return;
-
-        const res = await PortalUtils.apiFetch(`/api/listing/${id}/publish`, { method: 'POST' });
-        if (!res) return;
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            PortalUtils.toast(err.message || 'Failed to publish.', 'error');
-            return;
+        // ── Tab switching ─────────────────────────────────────────────────────────
+        function switchTab(name) {
+            document.querySelectorAll('.tab-btn').forEach((b, i) => {
+                b.classList.toggle('active', ['listings', 'upload', 'offers'][i] === name);
+            });
+            document.querySelectorAll('.tab-panel').forEach(p => {
+                p.classList.toggle('active', p.id === `tab-${name}`);
+            });
+            if (name === 'upload') loadRecentDocuments();
+            if (name === 'offers') loadOffers();
         }
 
-        PortalUtils.toast('Listing published!', 'success');
-        loadListings();
-    }
+        async function loadOffers() {
+            const tbody = document.getElementById('offers-tbody');
+            const filter = document.getElementById('offers-listing-filter');
+            tbody.innerHTML = '<tr class="state-row"><td colspan="7">Loading…</td></tr>';
 
-    // ── Delete listing ────────────────────────────────────────────────────────
-    async function deleteListing(id) {
-        if (!confirm('Delete this listing? This cannot be undone.')) return;
+            // Get all seller listings first to populate filter
+            const listRes = await PortalUtils.apiFetch('/api/listing/my');
+            if (!listRes || !listRes.ok) return;
+            const listings = await listRes.json();
 
-        const res = await PortalUtils.apiFetch(`/api/listing/${id}`, { method: 'DELETE' });
-        if (!res) return;
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            PortalUtils.toast(err.message || 'Failed to delete.', 'error');
-            return;
-        }
-
-        PortalUtils.toast('Listing deleted.', 'success');
-        loadListings();
-    }
-
-    // ── Document upload ───────────────────────────────────────────────────────
-    async function loadListingOptions() {
-        const res = await PortalUtils.apiFetch('/api/listing/my');
-        if (!res || !res.ok) return;
-
-        const listings = await res.json();
-        const select   = document.getElementById('upload-listing-id');
-
-        // Keep the first "no listing" option
-        select.innerHTML = '<option value="">— Upload without linking —</option>';
-        listings
-            .filter(l => !l.isDeleted && l.status !== 2)
-            .forEach(l => {
+            // Populate filter dropdown
+            const currentFilter = filter.value;
+            filter.innerHTML = '<option value="">All listings</option>';
+            listings.filter(l => !l.isDeleted).forEach(l => {
                 const opt = document.createElement('option');
-                opt.value       = l.id;
+                opt.value = l.id;
                 opt.textContent = `${l.year} ${l.make} ${l.model} (${l.vin})`;
-                select.appendChild(opt);
-            });
-    }
-
-    // File input change handler
-    document.getElementById('file-input').addEventListener('change', function () {
-        if (this.files[0]) uploadFile(this.files[0]);
-    });
-
-    // Drag and drop
-    const zone = document.getElementById('upload-zone');
-    zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('dragover'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
-    zone.addEventListener('drop', e => {
-        e.preventDefault();
-        zone.classList.remove('dragover');
-        if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]);
-    });
-
-    async function uploadFile(file) {
-        const errorEl    = document.getElementById('upload-error');
-        const progressEl = document.getElementById('upload-progress');
-        const resultEl   = document.getElementById('upload-result');
-        const bar        = document.getElementById('upload-bar');
-
-        errorEl.style.display  = 'none';
-        resultEl.style.display = 'none';
-
-        // Client-side validation
-        const allowed = ['application/pdf','image/jpeg','image/jpg','image/png','image/webp'];
-        if (!allowed.includes(file.type)) {
-            errorEl.textContent   = 'Only PDF and image files are allowed.';
-            errorEl.style.display = 'block';
-            return;
-        }
-
-        if (file.size > 10 * 1024 * 1024) {
-            errorEl.textContent   = 'File exceeds 10MB limit.';
-            errorEl.style.display = 'block';
-            return;
-        }
-
-        document.getElementById('upload-filename').textContent = file.name;
-        progressEl.style.display = 'block';
-        bar.style.width          = '30%';
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const listingId = document.getElementById('upload-listing-id').value;
-        if (listingId) formData.append('listingId', listingId);
-
-        const docType = document.getElementById('upload-doc-type').value;
-        formData.append('type', docType);
-
-        bar.style.width = '60%';
-
-        try {
-            const res = await fetch('/api/document/upload', {
-                method:  'POST',
-                headers: { 'Authorization': `Bearer ${PortalUtils.getToken()}` },
-                body:    formData
+                if (String(l.id) === currentFilter) opt.selected = true;
+                filter.appendChild(opt);
             });
 
-            bar.style.width = '100%';
+            // Load offers — either for a specific listing or all
+            const selectedListingId = filter.value;
+            let allOffers = [];
 
-            const data = await res.json();
+            if (selectedListingId) {
+                const res = await PortalUtils.apiFetch(
+                    `/api/offer/listing/${selectedListingId}`);
+                if (res && res.ok) {
+                    const offers = await res.json();
+                    const listing = listings.find(l => String(l.id) === selectedListingId);
+                    allOffers = offers.map(o => ({
+                        ...o,
+                        listingInfo: listing
+                            ? `${listing.year} ${listing.make} ${listing.model}`
+                            : `Listing #${selectedListingId}`
+                    }));
+                }
+            } else {
+                // Load offers for all listings
+                for (const listing of listings.filter(l => !l.isDeleted).slice(0, 10)) {
+                    const res = await PortalUtils.apiFetch(
+                        `/api/offer/listing/${listing.id}`);
+                    if (res && res.ok) {
+                        const offers = await res.json();
+                        allOffers = allOffers.concat(offers.map(o => ({
+                            ...o,
+                            listingInfo: `${listing.year} ${listing.make} ${listing.model}`
+                        })));
+                    }
+                }
+            }
 
-            if (!res.ok) {
-                errorEl.textContent   = data.message || 'Upload failed.';
-                errorEl.style.display = 'block';
-                progressEl.style.display = 'none';
+            allOffers.sort((a, b) => new Date(b.placedAt) - new Date(a.placedAt));
+
+            if (!allOffers.length) {
+                tbody.innerHTML = '<tr class="state-row"><td colspan="7">No offers yet.</td></tr>';
                 return;
             }
 
-            setTimeout(() => {
-                progressEl.style.display = 'none';
-                resultEl.innerHTML = `
-                    <div style="background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.3);
-                                border-radius:8px; padding:0.75rem 1rem; font-size:0.82rem; color:#34d399;">
-                        ✓ ${esc(file.name)} uploaded successfully.
-                        OCR processing will begin shortly.
-                    </div>`;
-                resultEl.style.display = 'block';
-                loadRecentDocuments();
-            }, 500);
+            const offerStatusMap = {
+                0: ['#a78bfa', 'Pending'],
+                1: ['#34d399', 'Accepted'],
+                2: ['#f87171', 'Declined'],
+                3: ['#94a3b8', 'Cancelled'],
+                4: ['#38bdf8', 'Completed']
+            };
 
-        } catch (err) {
-            console.error('Upload error:', err);
-            errorEl.textContent   = 'Upload failed. Check your connection.';
-            errorEl.style.display = 'block';
-            progressEl.style.display = 'none';
+            tbody.innerHTML = allOffers.map(o => {
+                const [color, label] = offerStatusMap[o.status] || ['#94a3b8', 'Unknown'];
+                return `
+        <tr>
+            <td>
+                <div style="font-weight:500; font-size:0.85rem;">
+                    ${esc(o.buyer?.firstName)} ${esc(o.buyer?.lastName)}
+                </div>
+                <div class="meta">${esc(o.buyer?.email)}</div>
+            </td>
+            <td style="font-size:0.82rem; color:#94a3b8;">${esc(o.listingInfo)}</td>
+            <td style="font-weight:600; color:#a78bfa;">
+                $${Number(o.amount).toLocaleString()}
+            </td>
+            <td style="font-size:0.78rem; color:#94a3b8; max-width:160px;
+                        overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                title="${esc(o.message || '')}">
+                ${esc(o.message || '—')}
+            </td>
+            <td>
+                <span style="font-size:0.75rem; font-weight:500; color:${color};">
+                    &#9679; ${label}
+                </span>
+            </td>
+            <td class="meta">${PortalUtils.formatDate(o.placedAt)}</td>
+            <td style="text-align:right; display:flex; gap:0.4rem; justify-content:flex-end;">
+                ${o.status === 0 ? `
+                <button class="btn-success"
+                        onclick="acceptOffer(${o.id}, ${o.listingId})">
+                    Accept
+                </button>
+                <button class="btn-danger"
+                        onclick="declineOffer(${o.id})">
+                    Decline
+                </button>` : ''}
+                ${o.status === 1 ? `
+                <button class="btn-success"
+                        onclick="completeOffer(${o.id})">
+                    Complete
+                </button>` : ''}
+            </td>
+        </tr>`;
+            }).join('');
         }
-    }
 
-    // ── Recent documents ──────────────────────────────────────────────────────
-    async function loadRecentDocuments() {
-        const tbody = document.getElementById('docs-tbody');
-        tbody.innerHTML = '<tr class="state-row"><td colspan="6">Loading…</td></tr>';
+        async function acceptOffer(offerId, listingId) {
+            if (!confirm('Accept this offer?\n\nAll other offers on this listing will be declined.'))
+                return;
 
-        const res = await PortalUtils.apiFetch('/api/document/mydocuments?pageSize=20');
-        if (!res || !res.ok) {
-            tbody.innerHTML = '<tr class="state-row"><td colspan="6">Error loading documents.</td></tr>';
-            return;
+            const res = await PortalUtils.apiFetch(`/api/offer/${offerId}/accept`, {
+                method: 'POST'
+            });
+
+            if (!res) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                PortalUtils.toast(err.message || 'Failed to accept offer.', 'error');
+                return;
+            }
+
+            PortalUtils.toast('Offer accepted!', 'success');
+            loadOffers();
+            loadListings();
         }
 
-        const data = await res.json();
+        async function declineOffer(offerId) {
+            const reason = prompt('Reason for declining (optional):');
+            if (reason === null) return; // user cancelled
 
-        if (!data.documents.length) {
-            tbody.innerHTML = '<tr class="state-row"><td colspan="6">No documents uploaded yet.</td></tr>';
-            return;
+            const res = await PortalUtils.apiFetch(`/api/offer/${offerId}/decline`, {
+                method: 'POST',
+                body: JSON.stringify({ reason })
+            });
+
+            if (!res) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                PortalUtils.toast(err.message || 'Failed to decline offer.', 'error');
+                return;
+            }
+
+            PortalUtils.toast('Offer declined.', 'success');
+            loadOffers();
         }
 
-        tbody.innerHTML = data.documents.map(d => `
-            <tr>
-                <td>
-                    <div style="font-weight:500; font-size:0.82rem;">${esc(d.fileName)}</div>
-                    <div class="meta">${d.isLinked ? `Linked to listing #${d.listingId}` : '— Not linked to a listing'}</div>
-                </td>
-                <td style="font-size:0.78rem; color:#94a3b8;">${docTypeName(d.type)}</td>
-                <td>${ocrBadge(d.ocrStatus)}</td>
-                <td>
-                    ${d.extractedVin
-                        ? `<span class="vin-tag">${esc(d.extractedVin)}</span>`
-                        : '<span class="meta">—</span>'}
-                </td>
-                <td class="meta">${PortalUtils.formatDate(d.uploadedAt)}</td>
-                <td style="text-align:right;">
-                    <button class="btn-danger" onclick="deleteDocument(${d.id}, '${esc(d.fileName)}')">
-                        Delete
-                    </button>
-                </td>
-            </tr>
-        `).join('');
-    }
+        async function completeOffer(offerId) {
+            if (!confirm('Complete this purchase?\n\nThis will mark the listing as Sold and transfer VIN ownership to the buyer. This cannot be undone.'))
+                return;
 
-    async function deleteDocument(id, fileName) {
-        if (!confirm(`Delete "${fileName}"?\n\nYou can re-upload this file after deletion.`)) return;
+            const res = await PortalUtils.apiFetch(`/api/offer/${offerId}/complete`, {
+                method: 'POST'
+            });
 
-        const res = await PortalUtils.apiFetch(`/api/document/${id}`, {
-            method: 'DELETE'
+            if (!res) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                PortalUtils.toast(err.message || 'Failed to complete purchase.', 'error');
+                return;
+            }
+
+            const data = await res.json();
+            PortalUtils.toast(
+                `Purchase complete! VIN ${data.vin} transferred.`, 'success', 5000);
+            loadOffers();
+            loadListings();
+        }
+
+        // ── Load listings ─────────────────────────────────────────────────────────
+        async function loadListings() {
+            const tbody = document.getElementById('listings-tbody');
+            tbody.innerHTML = '<tr class="state-row"><td colspan="6">Loading…</td></tr>';
+
+            const res = await PortalUtils.apiFetch('/api/listing/my');
+            if (!res) return;
+
+            if (!res.ok) {
+                tbody.innerHTML = `<tr class="state-row"><td colspan="6">Error loading listings.</td></tr>`;
+                return;
+            }
+
+            const listings = await res.json();
+
+            if (!listings.length) {
+                tbody.innerHTML = '<tr class="state-row"><td colspan="6">No listings yet. Create your first one!</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = listings.map(l => `
+                <tr>
+                    <td>
+                        <div style="font-weight:500">${esc(l.year)} ${esc(l.make)} ${esc(l.model)}</div>
+                        <div class="meta">${esc(l.color)} · ${l.mileage?.toLocaleString()} mi</div>
+                    </td>
+                    <td><span class="vin-tag">${esc(l.vin)}</span></td>
+                    <td>$${Number(l.askingPrice).toLocaleString()}</td>
+                    <td>${statusBadge(l.status)}</td>
+                    <td class="meta">${PortalUtils.formatDate(l.createdAt)}</td>
+                    <td style="text-align:right; display:flex; gap:0.4rem; justify-content:flex-end;">
+                        ${l.status === 0 ? `
+                        <button class="btn-success" onclick="publishListing(${l.id})">Publish</button>` : ''}
+                        ${l.status !== 2 && !l.isDeleted ? `
+                        <button class="btn-danger" onclick="deleteListing(${l.id})">Delete</button>` : ''}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // ── Create listing ────────────────────────────────────────────────────────
+        function openCreateModal() {
+            document.getElementById('create-modal').style.display = 'flex';
+            clearModalError();
+        }
+
+        function closeCreateModal() {
+            document.getElementById('create-modal').style.display = 'none';
+            clearModalError();
+        }
+
+        function showModalError(msg) {
+            const el = document.getElementById('modal-error');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        function clearModalError() {
+            const el = document.getElementById('modal-error');
+            el.style.display = 'none';
+            el.textContent = '';
+        }
+
+        document.getElementById('m-accidents').addEventListener('change', function () {
+            document.getElementById('accident-details-field').style.display =
+                this.checked ? 'block' : 'none';
         });
 
-        if (!res) return;
+        async function createListing() {
+            clearModalError();
 
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            PortalUtils.toast(err.message || 'Failed to delete document.', 'error');
-            return;
+            const body = {
+                vin: document.getElementById('m-vin').value.trim().toUpperCase(),
+                make: document.getElementById('m-make').value.trim(),
+                model: document.getElementById('m-model').value.trim(),
+                year: parseInt(document.getElementById('m-year').value),
+                color: document.getElementById('m-color').value.trim(),
+                mileage: parseInt(document.getElementById('m-mileage').value),
+                askingPrice: parseFloat(document.getElementById('m-price').value),
+                zipCode: document.getElementById('m-zip').value.trim(),
+                hasAccidents: document.getElementById('m-accidents').checked,
+                accidentDetails: document.getElementById('m-accident-details').value.trim(),
+                description: document.getElementById('m-description').value.trim()
+            };
+
+            if (!body.vin || !body.make || !body.model || !body.year || !body.color || !body.zipCode) {
+                showModalError('Please fill in all required fields.');
+                return;
+            }
+
+            if (body.vin.length !== 17) {
+                showModalError('VIN must be exactly 17 characters.');
+                return;
+            }
+
+            const res = await PortalUtils.apiFetch('/api/listing', {
+                method: 'POST',
+                body: JSON.stringify(body)
+            });
+
+            if (!res) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                showModalError(err.message || 'Failed to create listing.');
+                return;
+            }
+
+            closeCreateModal();
+            PortalUtils.toast('Listing saved as draft.', 'success');
+            loadListings();
+            loadListingOptions();
         }
 
-        PortalUtils.toast('Document deleted. You can now re-upload it.', 'success');
-        loadRecentDocuments();
-    }
+        // ── Publish listing ───────────────────────────────────────────────────────
+        async function publishListing(id) {
+            if (!confirm('Publish this listing? It will be visible to all buyers.')) return;
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-    function statusBadge(status) {
-        const map = {
-            0: ['badge-draft',    'Draft'],
-            1: ['badge-active',   'Active'],
-            2: ['badge-sold',     'Sold'],
-            3: ['badge-inactive', 'Inactive']
-        };
-        const [cls, label] = map[status] || ['badge-draft', 'Unknown'];
-        return `<span class="badge ${cls}">${label}</span>`;
-    }
+            const res = await PortalUtils.apiFetch(`/api/listing/${id}/publish`, { method: 'POST' });
+            if (!res) return;
 
-    function ocrBadge(status) {
-        const map = {
-            0: ['ocr-pending',    '&#9679; Pending'],
-            1: ['ocr-processing', '&#9650; Processing'],
-            2: ['ocr-completed',  '&#10003; Completed'],
-            3: ['ocr-failed',     '&#10007; Failed'],
-            4: ['ocr-pending',    '— Skipped']
-        };
-        const [cls, label] = map[status] || ['ocr-pending', 'Unknown'];
-        return `<span class="${cls}">${label}</span>`;
-    }
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                PortalUtils.toast(err.message || 'Failed to publish.', 'error');
+                return;
+            }
 
-    function docTypeName(type) {
-        const map = {
-            0: 'Vehicle Title', 1: 'Registration', 2: 'Inspection',
-            3: 'Insurance', 4: 'Maintenance', 5: 'Accident Report', 99: 'Other'
-        };
-        return map[type] || 'Other';
-    }
+            PortalUtils.toast('Listing published!', 'success');
+            loadListings();
+        }
 
-    function esc(str) {
-        if (str == null) return '';
-        return String(str)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+        // ── Delete listing ────────────────────────────────────────────────────────
+        async function deleteListing(id) {
+            if (!confirm('Delete this listing? This cannot be undone.')) return;
+
+            const res = await PortalUtils.apiFetch(`/api/listing/${id}`, { method: 'DELETE' });
+            if (!res) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                PortalUtils.toast(err.message || 'Failed to delete.', 'error');
+                return;
+            }
+
+            PortalUtils.toast('Listing deleted.', 'success');
+            loadListings();
+        }
+
+        // ── Document upload ───────────────────────────────────────────────────────
+        async function loadListingOptions() {
+            const res = await PortalUtils.apiFetch('/api/listing/my');
+            if (!res || !res.ok) return;
+
+            const listings = await res.json();
+            const select = document.getElementById('upload-listing-id');
+
+            // Keep the first "no listing" option
+            select.innerHTML = '<option value="">— Upload without linking —</option>';
+            listings
+                .filter(l => !l.isDeleted && l.status !== 2)
+                .forEach(l => {
+                    const opt = document.createElement('option');
+                    opt.value = l.id;
+                    opt.textContent = `${l.year} ${l.make} ${l.model} (${l.vin})`;
+                    select.appendChild(opt);
+                });
+        }
+
+        // File input change handler
+        document.getElementById('file-input').addEventListener('change', function () {
+            if (this.files[0]) uploadFile(this.files[0]);
+        });
+
+        // Drag and drop
+        const zone = document.getElementById('upload-zone');
+        zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+        zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+        zone.addEventListener('drop', e => {
+            e.preventDefault();
+            zone.classList.remove('dragover');
+            if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]);
+        });
+
+        async function uploadFile(file) {
+            const errorEl = document.getElementById('upload-error');
+            const progressEl = document.getElementById('upload-progress');
+            const resultEl = document.getElementById('upload-result');
+            const bar = document.getElementById('upload-bar');
+
+            errorEl.style.display = 'none';
+            resultEl.style.display = 'none';
+
+            // Client-side validation
+            const allowed = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+            if (!allowed.includes(file.type)) {
+                errorEl.textContent = 'Only PDF and image files are allowed.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            if (file.size > 10 * 1024 * 1024) {
+                errorEl.textContent = 'File exceeds 10MB limit.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            document.getElementById('upload-filename').textContent = file.name;
+            progressEl.style.display = 'block';
+            bar.style.width = '30%';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const listingId = document.getElementById('upload-listing-id').value;
+            if (listingId) formData.append('listingId', listingId);
+
+            const docType = document.getElementById('upload-doc-type').value;
+            formData.append('type', docType);
+
+            bar.style.width = '60%';
+
+            try {
+                const res = await fetch('/api/document/upload', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${PortalUtils.getToken()}` },
+                    body: formData
+                });
+
+                bar.style.width = '100%';
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    errorEl.textContent = data.message || 'Upload failed.';
+                    errorEl.style.display = 'block';
+                    progressEl.style.display = 'none';
+                    return;
+                }
+
+                setTimeout(() => {
+                    progressEl.style.display = 'none';
+                    resultEl.innerHTML = `
+                        <div style="background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.3);
+                                    border-radius:8px; padding:0.75rem 1rem; font-size:0.82rem; color:#34d399;">
+                            ✓ ${esc(file.name)} uploaded successfully.
+                            OCR processing will begin shortly.
+                        </div>`;
+                    resultEl.style.display = 'block';
+                    loadRecentDocuments();
+                }, 500);
+
+            } catch (err) {
+                console.error('Upload error:', err);
+                errorEl.textContent = 'Upload failed. Check your connection.';
+                errorEl.style.display = 'block';
+                progressEl.style.display = 'none';
+            }
+        }
+
+        // ── Recent documents ──────────────────────────────────────────────────────
+        async function loadRecentDocuments() {
+            const tbody = document.getElementById('docs-tbody');
+            tbody.innerHTML = '<tr class="state-row"><td colspan="6">Loading…</td></tr>';
+
+            const res = await PortalUtils.apiFetch('/api/document/mydocuments?pageSize=20');
+            if (!res || !res.ok) {
+                tbody.innerHTML = '<tr class="state-row"><td colspan="6">Error loading documents.</td></tr>';
+                return;
+            }
+
+            const data = await res.json();
+
+            if (!data.documents.length) {
+                tbody.innerHTML = '<tr class="state-row"><td colspan="6">No documents uploaded yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.documents.map(d => `
+                <tr>
+                    <td>
+                        <div style="font-weight:500; font-size:0.82rem;">${esc(d.fileName)}</div>
+                        <div class="meta">${d.isLinked ? `Linked to listing #${d.listingId}` : '— Not linked to a listing'}</div>
+                    </td>
+                    <td style="font-size:0.78rem; color:#94a3b8;">${docTypeName(d.type)}</td>
+                    <td>${ocrBadge(d.ocrStatus)}</td>
+                    <td>
+                        ${d.extractedVin
+                    ? `<span class="vin-tag">${esc(d.extractedVin)}</span>`
+                    : '<span class="meta">—</span>'}
+                    </td>
+                    <td class="meta">${PortalUtils.formatDate(d.uploadedAt)}</td>
+                    <td style="text-align:right;">
+                        <button class="btn-danger" onclick="deleteDocument(${d.id}, '${esc(d.fileName)}')">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function deleteDocument(id, fileName) {
+            if (!confirm(`Delete "${fileName}"?\n\nYou can re-upload this file after deletion.`)) return;
+
+            const res = await PortalUtils.apiFetch(`/api/document/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (!res) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                PortalUtils.toast(err.message || 'Failed to delete document.', 'error');
+                return;
+            }
+
+            PortalUtils.toast('Document deleted. You can now re-upload it.', 'success');
+            loadRecentDocuments();
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────────────────
+        function statusBadge(status) {
+            const map = {
+                0: ['badge-draft', 'Draft'],
+                1: ['badge-active', 'Active'],
+                2: ['badge-sold', 'Sold'],
+                3: ['badge-inactive', 'Inactive']
+            };
+            const [cls, label] = map[status] || ['badge-draft', 'Unknown'];
+            return `<span class="badge ${cls}">${label}</span>`;
+        }
+
+        function ocrBadge(status) {
+            const map = {
+                0: ['ocr-pending', '&#9679; Pending'],
+                1: ['ocr-processing', '&#9650; Processing'],
+                2: ['ocr-completed', '&#10003; Completed'],
+                3: ['ocr-failed', '&#10007; Failed'],
+                4: ['ocr-pending', '— Skipped']
+            };
+            const [cls, label] = map[status] || ['ocr-pending', 'Unknown'];
+            return `<span class="${cls}">${label}</span>`;
+        }
+
+        function docTypeName(type) {
+            const map = {
+                0: 'Vehicle Title', 1: 'Registration', 2: 'Inspection',
+                3: 'Insurance', 4: 'Maintenance', 5: 'Accident Report', 99: 'Other'
+            };
+            return map[type] || 'Other';
+        }
+
+        function esc(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
     </script>
 </body>
 </html>

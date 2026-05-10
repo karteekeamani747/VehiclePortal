@@ -1,0 +1,705 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listing | Vehicle Portal</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #0f172a;
+            color: #f1f5f9;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            padding: 0 2rem;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            color: #f1f5f9;
+        }
+
+        .nav-brand-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(167,139,250,0.15);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            color: #a78bfa;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .btn-back {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            border-radius: 6px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.78rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+            .btn-back:hover {
+                border-color: #94a3b8;
+                color: #f1f5f9;
+            }
+
+        .btn-logout {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            border-radius: 6px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+            .btn-logout:hover {
+                border-color: #f87171;
+                color: #f87171;
+            }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* ── Loading / error states ── */
+        .state-box {
+            text-align: center;
+            padding: 4rem;
+            color: #475569;
+        }
+
+        /* ── Listing header ── */
+        .listing-header {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .listing-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .listing-year {
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+
+        .listing-price {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #a78bfa;
+            white-space: nowrap;
+        }
+
+        /* ── Detail grid ── */
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .detail-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 1rem;
+        }
+
+        .detail-label {
+            font-size: 0.7rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.35rem;
+        }
+
+        .detail-value {
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .vin-tag {
+            font-family: monospace;
+            font-size: 0.82rem;
+            background: rgba(56,189,248,0.08);
+            color: #38bdf8;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .accident-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            background: rgba(251,191,36,0.1);
+            color: #fbbf24;
+            border: 1px solid rgba(251,191,36,0.3);
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .clean-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            background: rgba(52,211,153,0.1);
+            color: #34d399;
+            border: 1px solid rgba(52,211,153,0.3);
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        /* ── Description ── */
+        .description-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .description-text {
+            font-size: 0.9rem;
+            color: #cbd5e1;
+            line-height: 1.7;
+        }
+
+        /* ── Offer section ── */
+        .offer-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .offer-asking {
+            font-size: 0.82rem;
+            color: #64748b;
+            margin-bottom: 1rem;
+        }
+
+            .offer-asking strong {
+                color: #a78bfa;
+            }
+
+        .field {
+            margin-bottom: 1rem;
+        }
+
+            .field label {
+                display: block;
+                font-size: 0.78rem;
+                color: #94a3b8;
+                margin-bottom: 0.35rem;
+            }
+
+            .field input,
+            .field textarea {
+                width: 100%;
+                background: #0f172a;
+                border: 1px solid #334155;
+                color: #f1f5f9;
+                border-radius: 8px;
+                padding: 0.6rem 0.85rem;
+                font-size: 0.9rem;
+                transition: border-color 0.15s;
+            }
+
+                .field input:focus,
+                .field textarea:focus {
+                    outline: none;
+                    border-color: #a78bfa;
+                }
+
+            .field textarea {
+                resize: vertical;
+                min-height: 80px;
+            }
+
+        .btn-offer {
+            background: #a78bfa;
+            color: #0f172a;
+            border: none;
+            border-radius: 8px;
+            padding: 0.7rem 1.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+            .btn-offer:hover:not(:disabled) {
+                background: #c4b5fd;
+            }
+
+            .btn-offer:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+        .btn-cancel-offer {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            border-radius: 8px;
+            padding: 0.7rem 1.5rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+            margin-left: 0.75rem;
+        }
+
+            .btn-cancel-offer:hover {
+                border-color: #f87171;
+                color: #f87171;
+            }
+
+        /* ── Existing offer status ── */
+        .offer-status-box {
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
+        }
+
+        .offer-placed {
+            background: rgba(167,139,250,0.08);
+            border: 1px solid rgba(167,139,250,0.3);
+            color: #a78bfa;
+        }
+
+        .offer-accepted {
+            background: rgba(52,211,153,0.08);
+            border: 1px solid rgba(52,211,153,0.3);
+            color: #34d399;
+        }
+
+        .offer-declined {
+            background: rgba(248,113,113,0.08);
+            border: 1px solid rgba(248,113,113,0.3);
+            color: #f87171;
+        }
+
+        .offer-cancelled {
+            background: rgba(148,163,184,0.08);
+            border: 1px solid rgba(148,163,184,0.3);
+            color: #94a3b8;
+        }
+
+        .offer-completed {
+            background: rgba(56,189,248,0.08);
+            border: 1px solid rgba(56,189,248,0.3);
+            color: #38bdf8;
+        }
+
+        .offer-status-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .offer-status-meta {
+            font-size: 0.75rem;
+            opacity: 0.8;
+        }
+
+        /* ── Seller info ── */
+        .seller-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .seller-avatar {
+            width: 40px;
+            height: 40px;
+            background: rgba(167,139,250,0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            color: #a78bfa;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .seller-name {
+            font-size: 0.88rem;
+            font-weight: 500;
+        }
+
+        .seller-label {
+            font-size: 0.72rem;
+            color: #64748b;
+        }
+
+        /* ── Error msg ── */
+        .error-msg {
+            display: none;
+            background: rgba(248,113,113,0.1);
+            border: 1px solid rgba(248,113,113,0.3);
+            color: #f87171;
+            border-radius: 8px;
+            padding: 0.6rem 0.85rem;
+            font-size: 0.8rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <script src="/js/shared.js"></script>
+    <script>
+    const _token   = PortalUtils.getToken();
+    const _payload = PortalUtils.parseJwt(_token);
+    if (!_token || !_payload || !PortalUtils.isTokenAlive(_payload)) {
+        window.location.href = '/portal/login.html';
+    }
+    </script>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a class="nav-brand" href="/portal/index.html">
+            <div class="nav-brand-icon">&#9670;</div>
+            Vehicle Portal
+        </a>
+        <div class="nav-right">
+            <a href="/portal/index.html" class="btn-back">&#8592; Back to listings</a>
+            <button class="btn-logout" onclick="PortalUtils.logout()">Sign out</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div id="content">
+            <div class="state-box"><p>Loading listing…</p></div>
+        </div>
+    </div>
+
+    <script>
+    const params    = new URLSearchParams(window.location.search);
+    const listingId = parseInt(params.get('id'));
+    const payload   = PortalUtils.parseJwt(PortalUtils.getToken());
+    const currentUserId = payload?.sub;
+    const roles     = Array.isArray(payload?.role) ? payload.role : [payload?.role];
+    const isBuyer   = roles.includes('Buyer');
+    const isSeller  = roles.includes('Seller');
+
+    let listing     = null;
+    let myOffer     = null;
+
+    if (!listingId) {
+        window.location.href = '/portal/index.html';
+    } else {
+        loadListing();
+    }
+
+    async function loadListing() {
+        const res = await fetch(`/api/listing/${listingId}`);
+
+        if (!res.ok) {
+            document.getElementById('content').innerHTML =
+                '<div class="state-box"><h3>Listing not found</h3><p>It may have been removed.</p></div>';
+            return;
+        }
+
+        listing = await res.json();
+
+        // Load buyer's existing offer if logged in as buyer
+        if (isBuyer) {
+            await loadMyOffer();
+        }
+
+        renderListing();
+    }
+
+    async function loadMyOffer() {
+        const res = await PortalUtils.apiFetch('/api/offer/my');
+        if (!res || !res.ok) return;
+
+        const offers = await res.json();
+        myOffer = offers.find(o => o.listingId === listingId) || null;
+    }
+
+    function renderListing() {
+        const l = listing;
+
+        const sellerInitial = (l.seller?.firstName?.[0] || '?').toUpperCase();
+
+        document.getElementById('content').innerHTML = `
+            <!-- Header -->
+            <div class="listing-header">
+                <div>
+                    <div class="listing-year">${esc(l.year)} · ${esc(l.make)}</div>
+                    <div class="listing-title">${esc(l.model)}</div>
+                    <div style="margin-top:0.5rem;">
+                        ${l.hasAccidents
+                            ? '<span class="accident-tag">&#9888; Accident history</span>'
+                            : '<span class="clean-tag">&#10003; Clean history</span>'}
+                    </div>
+                </div>
+                <div class="listing-price">$${Number(l.askingPrice).toLocaleString()}</div>
+            </div>
+
+            <!-- Details grid -->
+            <div class="detail-grid">
+                <div class="detail-card">
+                    <div class="detail-label">VIN</div>
+                    <div class="detail-value"><span class="vin-tag">${esc(l.vin)}</span></div>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-label">Mileage</div>
+                    <div class="detail-value">${Number(l.mileage).toLocaleString()} mi</div>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-label">Color</div>
+                    <div class="detail-value">${esc(l.color)}</div>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-label">Location</div>
+                    <div class="detail-value">${esc(l.zipCode)}</div>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-label">Listed</div>
+                    <div class="detail-value">${PortalUtils.formatDate(l.createdAt)}</div>
+                </div>
+            </div>
+
+            ${l.accidentDetails ? `
+            <div class="description-card">
+                <div class="section-title">Accident details</div>
+                <div class="description-text">${esc(l.accidentDetails)}</div>
+            </div>` : ''}
+
+            ${l.description ? `
+            <div class="description-card">
+                <div class="section-title">Description</div>
+                <div class="description-text">${esc(l.description)}</div>
+            </div>` : ''}
+
+            <!-- Offer section -->
+            ${renderOfferSection(l)}
+
+            <!-- Seller info -->
+            ${l.seller ? `
+            <div class="seller-card">
+                <div class="seller-avatar">${sellerInitial}</div>
+                <div>
+                    <div class="seller-name">${esc(l.seller.firstName)} ${esc(l.seller.lastName)}</div>
+                    <div class="seller-label">Seller</div>
+                </div>
+            </div>` : ''}
+        `;
+    }
+
+    function renderOfferSection(l) {
+        // Don't show offer section if this is the seller's own listing
+        if (l.seller && isSeller && !isBuyer) return '';
+
+        // Not logged in as buyer
+        if (!isBuyer) return `
+            <div class="offer-card">
+                <div class="section-title">Make an offer</div>
+                <p style="color:#64748b; font-size:0.85rem;">
+                    <a href="/portal/login.html" style="color:#a78bfa;">Sign in</a>
+                    to make an offer on this vehicle.
+                </p>
+            </div>`;
+
+        // Already has an offer
+        if (myOffer) {
+            return `
+            <div class="offer-card">
+                <div class="section-title">Your offer</div>
+                ${renderExistingOffer(myOffer)}
+            </div>`;
+        }
+
+        // Listing is sold
+        if (l.status === 2) return `
+            <div class="offer-card">
+                <div class="section-title">This vehicle has been sold</div>
+            </div>`;
+
+        // Show offer form
+        return `
+            <div class="offer-card">
+                <div class="section-title">Make an offer</div>
+                <div class="offer-asking">
+                    Asking price: <strong>$${Number(l.askingPrice).toLocaleString()}</strong>
+                </div>
+                <div id="offer-error" class="error-msg"></div>
+                <div class="field">
+                    <label>Your offer ($)</label>
+                    <input type="number" id="offer-amount"
+                           placeholder="${l.askingPrice}"
+                           min="1" step="100">
+                </div>
+                <div class="field">
+                    <label>Message to seller <span style="color:#475569">(optional)</span></label>
+                    <textarea id="offer-message"
+                              placeholder="Introduce yourself or explain your offer…"></textarea>
+                </div>
+                <button class="btn-offer" id="offer-btn" onclick="placeOffer()">
+                    Submit offer
+                </button>
+            </div>`;
+    }
+
+    function renderExistingOffer(offer) {
+        const statusMap = {
+            0: { cls: 'offer-placed',    title: '&#9679; Offer pending',   sub: `You offered $${Number(offer.amount).toLocaleString()}. Waiting for seller response.` },
+            1: { cls: 'offer-accepted',  title: '&#10003; Offer accepted', sub: `Your offer of $${Number(offer.amount).toLocaleString()} was accepted!` },
+            2: { cls: 'offer-declined',  title: '&#10007; Offer declined', sub: offer.declineReason || 'The seller declined your offer.' },
+            3: { cls: 'offer-cancelled', title: 'Offer cancelled',         sub: 'You cancelled this offer.' },
+            4: { cls: 'offer-completed', title: '&#9733; Purchase complete!', sub: `You purchased this vehicle for $${Number(offer.amount).toLocaleString()}.` }
+        };
+
+        const { cls, title, sub } = statusMap[offer.status] || statusMap[0];
+
+        const canCancel = offer.status === 0 || offer.status === 1;
+
+        return `
+            <div class="offer-status-box ${cls}">
+                <div class="offer-status-title">${title}</div>
+                <div class="offer-status-meta">${sub}</div>
+            </div>
+            ${canCancel ? `
+            <button class="btn-cancel-offer" onclick="cancelOffer(${offer.id})">
+                Cancel offer
+            </button>` : ''}`;
+    }
+
+    // ── Place offer ───────────────────────────────────────────────────────────
+    async function placeOffer() {
+        const errorEl = document.getElementById('offer-error');
+        errorEl.style.display = 'none';
+
+        const amount  = parseFloat(document.getElementById('offer-amount').value);
+        const message = document.getElementById('offer-message').value.trim();
+        const btn     = document.getElementById('offer-btn');
+
+        if (!amount || amount <= 0) {
+            errorEl.textContent   = 'Please enter a valid offer amount.';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        btn.disabled    = true;
+        btn.textContent = 'Submitting…';
+
+        const res = await PortalUtils.apiFetch('/api/offer', {
+            method: 'POST',
+            body:   JSON.stringify({ listingId, amount, message })
+        });
+
+        btn.disabled    = false;
+        btn.textContent = 'Submit offer';
+
+        if (!res) return;
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            errorEl.textContent   = err.message || 'Failed to place offer.';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        PortalUtils.toast('Offer submitted!', 'success');
+        await loadMyOffer();
+        renderListing();
+    }
+
+    // ── Cancel offer ──────────────────────────────────────────────────────────
+    async function cancelOffer(offerId) {
+        if (!confirm('Cancel your offer?\n\nThis cannot be undone.')) return;
+
+        const res = await PortalUtils.apiFetch(`/api/offer/${offerId}/cancel`, {
+            method: 'POST',
+            body:   JSON.stringify({ reason: 'Cancelled by buyer.' })
+        });
+
+        if (!res) return;
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            PortalUtils.toast(err.message || 'Failed to cancel offer.', 'error');
+            return;
+        }
+
+        PortalUtils.toast('Offer cancelled.', 'success');
+        await loadMyOffer();
+        renderListing();
+    }
+
+    function esc(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    </script>
+</body>
+</html>
