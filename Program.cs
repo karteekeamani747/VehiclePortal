@@ -114,6 +114,9 @@ builder.Services.AddControllers();
 builder.Services.AddScoped<VehiclePortal.Services.IFileStorage,
                             VehiclePortal.Services.LocalFileStorage>();
 
+builder.Services.AddScoped<VehiclePortal.Services.IAuditService,
+                            VehiclePortal.Services.AuditService>();
+
 // RabbitMQ publisher — singleton so one connection is shared across the app
 builder.Services.AddSingleton<VehiclePortal.Services.RabbitMqPublisher>();
 
@@ -148,6 +151,22 @@ var app = builder.Build();
 await InitialiseDatabaseAsync(app);
 
 // ── 9. MIDDLEWARE PIPELINE ────────────────────────────────────────────────────
+// Prevent browsers from caching HTML files
+// CSS/JS/images can still be cached normally
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        var path = ctx.File.Name;
+        if (path.EndsWith(".html"))
+        {
+            ctx.Context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+            ctx.Context.Response.Headers["Pragma"] = "no-cache";
+            ctx.Context.Response.Headers["Expires"] = "0";
+        }
+    }
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();

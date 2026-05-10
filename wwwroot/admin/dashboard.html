@@ -18,7 +18,6 @@
             min-height: 100vh;
         }
 
-        /* ── Navbar ── */
         .navbar {
             background: #1e293b;
             border-bottom: 1px solid #334155;
@@ -76,7 +75,6 @@
                 color: #f87171;
             }
 
-        /* ── Tabs ── */
         .tabs {
             background: #1e293b;
             border-bottom: 1px solid #334155;
@@ -104,14 +102,12 @@
                 border-bottom-color: #38bdf8;
             }
 
-        /* ── Layout ── */
         .container {
             padding: 2rem;
             max-width: 1200px;
             margin: 0 auto;
         }
 
-        /* ── Section header ── */
         .section-header {
             display: flex;
             justify-content: space-between;
@@ -124,7 +120,6 @@
             font-weight: 600;
         }
 
-        /* ── Buttons ── */
         .btn-primary {
             background: #38bdf8;
             color: #0f172a;
@@ -188,7 +183,23 @@
                 color: #7dd3fc;
             }
 
-        /* ── Card ── */
+        .btn-edit {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            border-radius: 6px;
+            padding: 0.3rem 0.7rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+            margin-right: 0.35rem;
+        }
+
+            .btn-edit:hover {
+                border-color: #38bdf8;
+                color: #38bdf8;
+            }
+
         .card {
             background: #1e293b;
             border: 1px solid #334155;
@@ -196,7 +207,6 @@
             overflow: hidden;
         }
 
-        /* ── Table ── */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -231,7 +241,14 @@
         .user-name {
             font-weight: 500;
             font-size: 0.88rem;
+            cursor: pointer;
         }
+
+            .user-name:hover {
+                color: #38bdf8;
+                text-decoration: underline;
+                text-underline-offset: 2px;
+            }
 
         .user-email {
             font-size: 0.75rem;
@@ -249,7 +266,6 @@
             font-size: 0.75rem;
         }
 
-        /* ── Empty state ── */
         .state-row td {
             text-align: center;
             padding: 3rem;
@@ -257,7 +273,6 @@
             font-size: 0.85rem;
         }
 
-        /* ── Tab panels ── */
         .tab-panel {
             display: none;
         }
@@ -266,7 +281,6 @@
                 display: block;
             }
 
-        /* ── Modal ── */
         .modal-overlay {
             position: fixed;
             inset: 0;
@@ -302,6 +316,16 @@
             border-radius: 8px;
             padding: 0.5rem 0.75rem;
             font-size: 0.78rem;
+            margin-bottom: 1rem;
+        }
+
+        .modal-info {
+            background: rgba(56,189,248,0.08);
+            border: 1px solid rgba(56,189,248,0.2);
+            color: #38bdf8;
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.75rem;
             margin-bottom: 1rem;
         }
 
@@ -350,7 +374,30 @@
             margin-top: 1.25rem;
         }
 
-        /* ── Audit log ── */
+        /* Role checkboxes */
+        .roles-group {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            padding: 0.75rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+        }
+
+        .role-check {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.82rem;
+            cursor: pointer;
+        }
+
+            .role-check input[type="checkbox"] {
+                width: auto;
+                cursor: pointer;
+            }
+
         .audit-action {
             font-size: 0.72rem;
             font-weight: 500;
@@ -360,7 +407,6 @@
             color: #38bdf8;
         }
 
-        /* ── Pagination ── */
         .pagination {
             display: flex;
             align-items: center;
@@ -392,7 +438,6 @@
                 cursor: not-allowed;
             }
 
-        /* ── Docs modal table ── */
         .docs-table th {
             text-align: left;
             padding: 0.5rem 0.75rem;
@@ -417,6 +462,28 @@
         .docs-table tbody tr:hover {
             background: rgba(255,255,255,0.02);
         }
+
+        .divider {
+            border: none;
+            border-top: 1px solid #334155;
+            margin: 1.25rem 0;
+        }
+
+        .danger-zone {
+            border: 1px solid rgba(248,113,113,0.2);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .danger-zone-title {
+            font-size: 0.72rem;
+            color: #f87171;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -426,7 +493,6 @@
         if (!PortalUtils.requireRole('SuperAdmin')) throw new Error('Access denied');
     </script>
 
-    <!-- Navbar -->
     <nav class="navbar">
         <div class="nav-brand">
             <div class="nav-brand-icon">&#9632;</div>
@@ -438,17 +504,15 @@
         </div>
     </nav>
 
-    <!-- Tabs -->
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('users')">Users</button>
         <button class="tab-btn" onclick="switchTab('audit')">Audit trail</button>
         <button class="tab-btn" onclick="switchTab('dlq')">Dead Letter Queue</button>
     </div>
 
-    <!-- Main -->
     <div class="container">
 
-        <!-- ── Users tab ── -->
+        <!-- Users tab -->
         <div id="tab-users" class="tab-panel active">
             <div class="section-header">
                 <span class="section-title">User management</span>
@@ -476,7 +540,7 @@
             </div>
         </div>
 
-        <!-- ── Audit tab ── -->
+        <!-- Audit tab -->
         <div id="tab-audit" class="tab-panel">
             <div class="section-header">
                 <span class="section-title">Audit trail</span>
@@ -505,7 +569,7 @@
             </div>
         </div>
 
-        <!-- ── DLQ tab ── -->
+        <!-- DLQ tab -->
         <div id="tab-dlq" class="tab-panel">
             <div class="section-header">
                 <span class="section-title">Dead Letter Queue</span>
@@ -568,6 +632,64 @@
         </div>
     </div>
 
+    <!-- Edit user modal -->
+    <div id="edit-modal" class="modal-overlay" style="display:none;">
+        <div class="modal">
+            <h2 id="edit-modal-title">Edit user</h2>
+            <div id="edit-modal-error" class="modal-error"></div>
+            <div class="modal-info">
+                &#9432; Role changes take effect on the user's next login.
+            </div>
+
+            <div class="grid-2">
+                <div class="field">
+                    <label>First name</label>
+                    <input id="e-firstname" placeholder="Jane">
+                </div>
+                <div class="field">
+                    <label>Last name</label>
+                    <input id="e-lastname" placeholder="Doe">
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Email</label>
+                <input id="e-email" type="email" placeholder="jane@example.com">
+            </div>
+
+            <div class="field">
+                <label>Roles</label>
+                <div class="roles-group">
+                    <label class="role-check">
+                        <input type="checkbox" id="e-role-superadmin" value="SuperAdmin">
+                        SuperAdmin
+                    </label>
+                    <label class="role-check">
+                        <input type="checkbox" id="e-role-seller" value="Seller">
+                        Seller
+                    </label>
+                    <label class="role-check">
+                        <input type="checkbox" id="e-role-buyer" value="Buyer">
+                        Buyer
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeEditModal()">Cancel</button>
+                <button class="btn-primary" onclick="saveUserEdit()">Save changes</button>
+            </div>
+
+            <!-- Danger zone -->
+            <div class="danger-zone">
+                <div class="danger-zone-title">&#9888; Danger zone</div>
+                <button class="btn-danger" id="e-deactivate-btn" onclick="deactivateFromEdit()">
+                    Deactivate this user
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- User documents modal -->
     <div id="docs-modal" class="modal-overlay" style="display:none;">
         <div class="modal" style="max-width:720px;">
@@ -575,7 +697,6 @@
                 <h2 id="docs-modal-title" style="margin:0; font-size:0.95rem;">User Documents</h2>
                 <button class="btn-secondary" onclick="closeDocsModal()">Close</button>
             </div>
-            <div id="docs-modal-error" class="modal-error"></div>
             <table class="docs-table" style="width:100%;">
                 <thead>
                     <tr>
@@ -595,8 +716,8 @@
 
     <script>
         // ── Init ──────────────────────────────────────────────────────────────────
-        const user = PortalUtils.getUser();
-        document.getElementById('nav-email').textContent = user?.email ?? '';
+        const currentUser = PortalUtils.getUser();
+        document.getElementById('nav-email').textContent = currentUser?.email ?? '';
         loadUsers();
 
         // ── Tab switching ─────────────────────────────────────────────────────────
@@ -620,13 +741,8 @@
             const res = await PortalUtils.apiFetch('/api/admin/users');
             if (!res) return;
 
-            if (res.status === 401) { PortalUtils.logout(); return; }
-            if (res.status === 403) {
-                tbody.innerHTML = '<tr class="state-row"><td colspan="6" style="color:#f87171;">403 – SuperAdmin role required.</td></tr>';
-                return;
-            }
             if (!res.ok) {
-                tbody.innerHTML = '<tr class="state-row"><td colspan="6" style="color:#f87171;">Server error – could not load users.</td></tr>';
+                tbody.innerHTML = `<tr class="state-row"><td colspan="6" style="color:#f87171;">Error ${res.status}</td></tr>`;
                 return;
             }
 
@@ -638,43 +754,41 @@
             }
 
             tbody.innerHTML = users.map(u => `
-                <tr>
+                <tr data-user='${JSON.stringify(u).replace(/'/g, "&#39;")}'>
                     <td>
-                        <div class="user-name">${esc(u.firstName)} ${esc(u.lastName)}</div>
+                        <div class="user-name" onclick="openEditFromRow(this)">
+                            ${esc(u.firstName)} ${esc(u.lastName)}
+                        </div>
                         <div class="user-email">${esc(u.email)}</div>
                     </td>
                     <td>${(u.roles || []).map(r => PortalUtils.roleBadge(r)).join(' ')}</td>
                     <td>
                         ${u.documentCount > 0
-                    ? `<button class="btn-link"
+                                ? `<button class="btn-link"
                                     onclick="openUserDocuments('${esc(u.id)}', '${esc(u.email)}')">
                                     ${u.documentCount} file${u.documentCount !== 1 ? 's' : ''}
                                </button>`
-                    : '<span style="color:#475569; font-size:0.78rem;">0 files</span>'}
+                                : '<span style="color:#475569; font-size:0.78rem;">0 files</span>'}
                     </td>
                     <td>
                         ${u.isActive
-                    ? '<span class="status-active">&#9679; Active</span>'
-                    : '<span class="status-inactive">&#9679; Deactivated</span>'}
+                                ? '<span class="status-active">&#9679; Active</span>'
+                                : '<span class="status-inactive">&#9679; Deactivated</span>'}
                     </td>
                     <td style="color:#64748b; font-size:0.78rem;">
                         ${PortalUtils.formatDate(u.createdAt)}
                     </td>
                     <td style="text-align:right;">
-                        ${u.isActive ? `
-                        <button class="btn-danger"
-                                onclick="deactivateUser('${esc(u.id)}', '${esc(u.email)}')">
-                            Deactivate
-                        </button>` : '<span style="color:#475569; font-size:0.75rem;">—</span>'}
+                        <button class="btn-edit" onclick="openEditFromRow(this)">Edit</button>
                     </td>
                 </tr>
             `).join('');
         }
 
-        // ── Create user ───────────────────────────────────────────────────────────
+        // ── Create user modal ─────────────────────────────────────────────────────
         function openCreateModal() {
             document.getElementById('create-modal').style.display = 'flex';
-            clearModalError();
+            clearError('modal-error');
         }
 
         function closeCreateModal() {
@@ -683,23 +797,11 @@
                 document.getElementById(id).value = '';
             });
             document.getElementById('m-role').value = 'SuperAdmin';
-            clearModalError();
-        }
-
-        function showModalError(msg) {
-            const el = document.getElementById('modal-error');
-            el.textContent = msg;
-            el.style.display = 'block';
-        }
-
-        function clearModalError() {
-            const el = document.getElementById('modal-error');
-            el.style.display = 'none';
-            el.textContent = '';
+            clearError('modal-error');
         }
 
         async function createUser() {
-            clearModalError();
+            clearError('modal-error');
 
             const body = {
                 firstName: document.getElementById('m-firstname').value.trim(),
@@ -710,7 +812,7 @@
             };
 
             if (!body.email || !body.password) {
-                showModalError('Email and password are required.');
+                showError('modal-error', 'Email and password are required.');
                 return;
             }
 
@@ -723,7 +825,7 @@
 
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                showModalError(err.message || 'Failed to create user.');
+                showError('modal-error', err.message || 'Failed to create user.');
                 return;
             }
 
@@ -732,11 +834,91 @@
             loadUsers();
         }
 
-        // ── Deactivate user ───────────────────────────────────────────────────────
-        async function deactivateUser(id, email) {
-            if (!confirm(`Deactivate ${email}?\n\nThey will no longer be able to log in.`)) return;
+        // ── Edit user modal ───────────────────────────────────────────────────────
+        let editingUserId = null;
 
-            const res = await PortalUtils.apiFetch(`/api/admin/users/${id}`, {
+        function openEditModal(id, firstName, lastName, email, roles, isActive) {
+            editingUserId = id;
+
+            document.getElementById('edit-modal-title').textContent = `Edit — ${email}`;
+            document.getElementById('e-firstname').value = firstName;
+            document.getElementById('e-lastname').value = lastName;
+            document.getElementById('e-email').value = email;
+
+            // Set role checkboxes
+            document.getElementById('e-role-superadmin').checked = roles.includes('SuperAdmin');
+            document.getElementById('e-role-seller').checked = roles.includes('Seller');
+            document.getElementById('e-role-buyer').checked = roles.includes('Buyer');
+
+            // Show/hide deactivate button
+            const deactivateBtn = document.getElementById('e-deactivate-btn');
+            deactivateBtn.style.display = isActive ? 'inline-block' : 'none';
+
+            // If editing own account — warn about SuperAdmin role removal
+            const myPayload = PortalUtils.parseJwt(PortalUtils.getToken());
+            if (myPayload?.sub === id) {
+                document.getElementById('e-role-superadmin').disabled = true;
+                document.getElementById('e-role-superadmin').title =
+                    'You cannot remove your own SuperAdmin role';
+            } else {
+                document.getElementById('e-role-superadmin').disabled = false;
+                document.getElementById('e-role-superadmin').title = '';
+            }
+
+            clearError('edit-modal-error');
+            document.getElementById('edit-modal').style.display = 'flex';
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').style.display = 'none';
+            editingUserId = null;
+            clearError('edit-modal-error');
+        }
+
+        async function saveUserEdit() {
+            clearError('edit-modal-error');
+
+            const roles = [];
+            if (document.getElementById('e-role-superadmin').checked) roles.push('SuperAdmin');
+            if (document.getElementById('e-role-seller').checked) roles.push('Seller');
+            if (document.getElementById('e-role-buyer').checked) roles.push('Buyer');
+
+            if (!roles.length) {
+                showError('edit-modal-error', 'User must have at least one role.');
+                return;
+            }
+
+            const body = {
+                firstName: document.getElementById('e-firstname').value.trim(),
+                lastName: document.getElementById('e-lastname').value.trim(),
+                email: document.getElementById('e-email').value.trim(),
+                roles
+            };
+
+            const res = await PortalUtils.apiFetch(`/api/admin/users/${editingUserId}`, {
+                method: 'PUT',
+                body: JSON.stringify(body)
+            });
+
+            if (!res) return;
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                showError('edit-modal-error', err.message || 'Failed to update user.');
+                return;
+            }
+
+            const data = await res.json();
+            closeEditModal();
+            PortalUtils.toast(data.message || 'User updated.', 'success');
+            loadUsers();
+        }
+
+        async function deactivateFromEdit() {
+            if (!editingUserId) return;
+            if (!confirm('Deactivate this user?\n\nThey will no longer be able to log in.')) return;
+
+            const res = await PortalUtils.apiFetch(`/api/admin/users/${editingUserId}`, {
                 method: 'DELETE'
             });
 
@@ -744,10 +926,11 @@
 
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                PortalUtils.toast(err.message || 'Failed to deactivate user.', 'error');
+                showError('edit-modal-error', err.message || 'Failed to deactivate user.');
                 return;
             }
 
+            closeEditModal();
             PortalUtils.toast('User deactivated.', 'success');
             loadUsers();
         }
@@ -796,18 +979,14 @@
                     <td>
                         <div style="font-weight:500; font-size:0.82rem;">${esc(d.fileName)}</div>
                         <div style="font-size:0.72rem; color:#64748b;">
-                            ${d.listingId ? `Listing #${d.listingId}` : 'Not linked to a listing'}
+                            ${d.listingId ? `Listing #${d.listingId}` : 'Not linked'}
                         </div>
                     </td>
-                    <td style="font-size:0.75rem; color:#94a3b8;">
-                        ${typeLabels[d.type] || 'Other'}
-                    </td>
+                    <td style="font-size:0.75rem; color:#94a3b8;">${typeLabels[d.type] || 'Other'}</td>
                     <td style="font-size:0.75rem; color:${ocrColors[d.ocrStatus] || '#94a3b8'};">
                         ${ocrLabels[d.ocrStatus] || 'Unknown'}
                     </td>
-                    <td style="font-size:0.75rem; color:#64748b;">
-                        ${PortalUtils.formatDate(d.uploadedAt)}
-                    </td>
+                    <td style="font-size:0.75rem; color:#64748b;">${PortalUtils.formatDate(d.uploadedAt)}</td>
                     <td style="text-align:right;">
                         <button class="btn-danger"
                                 onclick="adminDeleteDocument(${d.id}, '${esc(d.fileName)}')">
@@ -850,9 +1029,8 @@
                 `/api/admin/audit?page=${page}&pageSize=${AUDIT_PAGE_SIZE}`
             );
 
-            if (!res) return;
-            if (!res.ok) {
-                tbody.innerHTML = `<tr class="state-row"><td colspan="5" style="color:#f87171;">Error ${res.status} – could not load audit logs.</td></tr>`;
+            if (!res || !res.ok) {
+                tbody.innerHTML = `<tr class="state-row"><td colspan="5" style="color:#f87171;">Error loading audit logs.</td></tr>`;
                 return;
             }
 
@@ -861,7 +1039,6 @@
 
             document.getElementById('audit-info').textContent =
                 `Page ${page} of ${data.totalPages} (${data.total} entries)`;
-
             document.getElementById('audit-prev').disabled = page <= 1;
             document.getElementById('audit-next').disabled = page >= data.totalPages;
 
@@ -883,8 +1060,9 @@
                     <td style="font-size:0.78rem; color:#94a3b8;">
                         ${esc(log.entityType)} ${esc(log.entityId?.slice(0, 8))}…
                     </td>
-                    <td style="font-size:0.78rem; color:#94a3b8; max-width:200px;
-                                overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    <td style="font-size:0.78rem; color:#94a3b8; max-width:220px;
+                                overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                        title="${esc(log.details || '')}">
                         ${esc(log.details || '—')}
                     </td>
                 </tr>
@@ -918,9 +1096,7 @@
                     <td style="color:#64748b; font-size:0.78rem; white-space:nowrap;">
                         ${PortalUtils.formatDate(m.createdAt)}
                     </td>
-                    <td>
-                        <span class="audit-action">${esc(m.eventType)}</span>
-                    </td>
+                    <td><span class="audit-action">${esc(m.eventType)}</span></td>
                     <td style="font-size:0.78rem; color:#94a3b8;">
                         ${m.retryCount} attempt${m.retryCount !== 1 ? 's' : ''}
                     </td>
@@ -959,12 +1135,31 @@
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────
+        function showError(elId, msg) {
+            const el = document.getElementById(elId);
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        function clearError(elId) {
+            const el = document.getElementById(elId);
+            el.style.display = 'none';
+            el.textContent = '';
+        }
+
         function esc(str) {
             if (str == null) return '';
             return String(str)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
+
+        function openEditFromRow(el) {
+            const row = el.closest('tr');
+            const u = JSON.parse(row.dataset.user);
+            openEditModal(u.id, u.firstName, u.lastName, u.email, u.roles, u.isActive);
+        }
+
     </script>
 </body>
 </html>

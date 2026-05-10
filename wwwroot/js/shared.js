@@ -10,8 +10,6 @@ const PortalUtils = {
     removeToken: () => localStorage.removeItem('vp_token'),
 
     // ── User storage ──────────────────────────────────────────────────────────
-    // We store the user object from the login response separately
-    // so pages never need to decode the JWT to get the name/roles.
     getUser: () => {
         try {
             return JSON.parse(localStorage.getItem('vp_user') || 'null');
@@ -21,15 +19,26 @@ const PortalUtils = {
     removeUser: () => localStorage.removeItem('vp_user'),
 
     // ── Logout ────────────────────────────────────────────────────────────────
-    logout: () => {
+    logout: function () {
+        const token = localStorage.getItem('vp_token');
+        let redirectUrl = '/admin/login.html';
+
+        if (token) {
+            const payload = PortalUtils.parseJwt(token);
+            if (payload) {
+                const role = payload.role;
+                if (role === 'Seller' || role === 'Buyer') {
+                    redirectUrl = '/seller/login.html';
+                }
+            }
+        }
+
         localStorage.removeItem('vp_token');
         localStorage.removeItem('vp_user');
-        window.location.href = '/admin/login.html';
+        window.location.href = redirectUrl;
     },
 
     // ── JWT decode ────────────────────────────────────────────────────────────
-    // Decodes the payload without verifying the signature.
-    // Signature verification is the SERVER's job — we only read claims here.
     parseJwt: (token) => {
         if (!token) return null;
         try {
@@ -42,7 +51,6 @@ const PortalUtils = {
     // ── Token expiry check ────────────────────────────────────────────────────
     isTokenAlive: (payload) => {
         if (!payload?.exp) return false;
-        // exp is in seconds, Date.now() is in milliseconds
         return Date.now() < payload.exp * 1000;
     },
 
@@ -59,8 +67,6 @@ const PortalUtils = {
     isBuyer: (payload) => PortalUtils.hasRole(payload, 'Buyer'),
 
     // ── Page guard ────────────────────────────────────────────────────────────
-    // Call at the top of every protected page.
-    // Redirects to the correct login page if the session is invalid.
     requireRole: (role) => {
         const token = PortalUtils.getToken();
         const payload = PortalUtils.parseJwt(token);
@@ -93,7 +99,6 @@ const PortalUtils = {
         'Content-Type': 'application/json'
     }),
 
-    // Wrapper around fetch that handles 401 automatically
     apiFetch: async (url, options = {}) => {
         const response = await fetch(url, {
             ...options,
@@ -103,7 +108,6 @@ const PortalUtils = {
             }
         });
 
-        // Token expired or invalid — force logout
         if (response.status === 401) {
             PortalUtils.logout();
             return null;
@@ -113,7 +117,6 @@ const PortalUtils = {
     },
 
     // ── UI helpers ────────────────────────────────────────────────────────────
-    // Sanitise a string before inserting into the DOM — prevents XSS
     esc: (str) => {
         if (str == null) return '';
         return String(str)
@@ -124,7 +127,6 @@ const PortalUtils = {
             .replace(/'/g, '&#x27;');
     },
 
-    // Show a temporary toast notification
     toast: (msg, type = 'success', durationMs = 3000) => {
         let el = document.getElementById('vp-toast');
         if (!el) {
@@ -151,13 +153,11 @@ const PortalUtils = {
         setTimeout(() => { el.style.display = 'none'; }, durationMs);
     },
 
-    // Format a UTC date string to local readable format
     formatDate: (utcString) => {
         if (!utcString) return '—';
         return new Date(utcString).toLocaleString();
     },
 
-    // Role badge HTML — returns a styled span for a role name
     roleBadge: (role) => {
         const styles = {
             SuperAdmin: 'background:rgba(56,189,248,0.12);  color:#38bdf8;',

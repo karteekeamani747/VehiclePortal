@@ -1,0 +1,780 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse Vehicles | Vehicle Portal</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #0f172a;
+            color: #f1f5f9;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100vh;
+        }
+
+        /* ── Navbar ── */
+        .navbar {
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            padding: 0 2rem;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            color: #f1f5f9;
+        }
+
+        .nav-brand-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(167,139,250,0.15);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            color: #a78bfa;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .nav-email {
+            font-size: 0.78rem;
+            color: #94a3b8;
+        }
+
+        .btn-sell {
+            background: #34d399;
+            color: #0f172a;
+            border: none;
+            border-radius: 6px;
+            padding: 0.4rem 0.9rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+            .btn-sell:hover {
+                background: #6ee7b7;
+            }
+
+        .btn-become-seller {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            border-radius: 6px;
+            padding: 0.4rem 0.9rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+            .btn-become-seller:hover {
+                border-color: #34d399;
+                color: #34d399;
+            }
+
+        .btn-logout {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            border-radius: 6px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+            .btn-logout:hover {
+                border-color: #f87171;
+                color: #f87171;
+            }
+
+        /* ── Search bar ── */
+        .search-bar {
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            padding: 1rem 2rem;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 0.75rem;
+            max-width: 1100px;
+            margin: 0 auto;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 200px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #f1f5f9;
+            border-radius: 8px;
+            padding: 0.55rem 0.85rem;
+            font-size: 0.85rem;
+        }
+
+            .search-input:focus {
+                outline: none;
+                border-color: #a78bfa;
+            }
+
+            .search-input::placeholder {
+                color: #475569;
+            }
+
+        .search-select {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #f1f5f9;
+            border-radius: 8px;
+            padding: 0.55rem 0.85rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+            .search-select:focus {
+                outline: none;
+                border-color: #a78bfa;
+            }
+
+        .btn-search {
+            background: #a78bfa;
+            color: #0f172a;
+            border: none;
+            border-radius: 8px;
+            padding: 0.55rem 1.25rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+            white-space: nowrap;
+        }
+
+            .btn-search:hover {
+                background: #c4b5fd;
+            }
+
+        .btn-clear {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #64748b;
+            border-radius: 8px;
+            padding: 0.55rem 0.85rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+            .btn-clear:hover {
+                border-color: #94a3b8;
+                color: #94a3b8;
+            }
+
+        /* ── Layout ── */
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+
+        .result-count {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        /* ── Listings grid ── */
+        .listings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.25rem;
+        }
+
+        /* ── Listing card ── */
+        .listing-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.15s, transform 0.15s;
+            cursor: pointer;
+        }
+
+            .listing-card:hover {
+                border-color: #a78bfa;
+                transform: translateY(-2px);
+            }
+
+        .card-header {
+            background: #0f172a;
+            padding: 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .card-year-make {
+            font-size: 0.72rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .card-model {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-top: 0.2rem;
+        }
+
+        .card-price {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #a78bfa;
+            white-space: nowrap;
+        }
+
+        .card-body {
+            padding: 1rem 1.25rem;
+        }
+
+        .card-meta {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.85rem;
+        }
+
+        .meta-item {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .card-vin {
+            font-family: monospace;
+            font-size: 0.72rem;
+            color: #475569;
+            margin-bottom: 0.75rem;
+        }
+
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 0.75rem;
+            border-top: 1px solid #0f172a;
+        }
+
+        .card-location {
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+
+        .btn-favourite {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            color: #475569;
+            transition: color 0.15s;
+            padding: 0;
+            line-height: 1;
+        }
+
+            .btn-favourite.active {
+                color: #f87171;
+            }
+
+            .btn-favourite:hover {
+                color: #f87171;
+            }
+
+        .accident-badge {
+            display: inline-block;
+            background: rgba(251,191,36,0.1);
+            border: 1px solid rgba(251,191,36,0.3);
+            color: #fbbf24;
+            font-size: 0.65rem;
+            font-weight: 500;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+
+        /* ── Empty / loading states ── */
+        .state-box {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #475569;
+        }
+
+            .state-box h3 {
+                font-size: 1rem;
+                margin-bottom: 0.5rem;
+                color: #64748b;
+            }
+
+            .state-box p {
+                font-size: 0.85rem;
+            }
+
+        /* ── Pagination ── */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 2rem;
+        }
+
+        .page-btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            border-radius: 8px;
+            padding: 0.45rem 0.9rem;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+            .page-btn:hover:not(:disabled) {
+                border-color: #a78bfa;
+                color: #a78bfa;
+            }
+
+            .page-btn:disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+            }
+
+            .page-btn.active {
+                border-color: #a78bfa;
+                color: #a78bfa;
+                background: rgba(167,139,250,0.08);
+            }
+
+        .page-info {
+            font-size: 0.78rem;
+            color: #64748b;
+        }
+
+        /* ── Become seller modal ── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 440px;
+        }
+
+            .modal h2 {
+                font-size: 1rem;
+                font-weight: 600;
+                margin-bottom: 0.5rem;
+            }
+
+            .modal p {
+                font-size: 0.85rem;
+                color: #94a3b8;
+                margin-bottom: 1.5rem;
+                line-height: 1.6;
+            }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+
+        .btn-primary {
+            background: #34d399;
+            color: #0f172a;
+            border: none;
+            border-radius: 8px;
+            padding: 0.6rem 1.25rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+            .btn-primary:hover {
+                background: #6ee7b7;
+            }
+
+            .btn-primary:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            border-radius: 8px;
+            padding: 0.6rem 1.25rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+            .btn-secondary:hover {
+                border-color: #94a3b8;
+                color: #f1f5f9;
+            }
+    </style>
+</head>
+<body>
+
+    <script src="/js/shared.js"></script>
+    <script>
+    // Require any authenticated user — Buyer or Seller
+    const _token   = PortalUtils.getToken();
+    const _payload = PortalUtils.parseJwt(_token);
+    if (!_token || !_payload || !PortalUtils.isTokenAlive(_payload)) {
+        window.location.href = '/portal/login.html';
+    }
+    </script>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a class="nav-brand" href="/portal/index.html">
+            <div class="nav-brand-icon">&#9670;</div>
+            Vehicle Portal
+        </a>
+        <div class="nav-right">
+            <span id="nav-name" class="nav-email"></span>
+            <button id="btn-sell-car" style="display:none;"
+                    class="btn-sell"
+                    onclick="window.location.href='/seller/dashboard.html'">
+                &#9650; Sell my car
+            </button>
+            <button id="btn-become-seller"
+                    class="btn-become-seller"
+                    onclick="openBecomeSellerModal()">
+                Want to sell?
+            </button>
+            <button class="btn-logout" onclick="PortalUtils.logout()">Sign out</button>
+        </div>
+    </nav>
+
+    <!-- Search bar -->
+    <div class="search-bar">
+        <div class="search-row">
+            <input class="search-input" id="s-make" placeholder="Make (e.g. Toyota)">
+            <input class="search-input" id="s-model" placeholder="Model (e.g. Camry)">
+            <input class="search-input" id="s-year" placeholder="Year" type="number" style="max-width:100px;">
+            <input class="search-input" id="s-zip" placeholder="ZIP code" style="max-width:110px;">
+            <input class="search-input" id="s-maxprice" placeholder="Max price $" type="number" style="max-width:130px;">
+            <button class="btn-search" onclick="searchListings(1)">Search</button>
+            <button class="btn-clear" onclick="clearSearch()">Clear</button>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="container">
+        <div class="section-header">
+            <span class="section-title" id="results-label">All active listings</span>
+            <span class="result-count" id="results-count"></span>
+        </div>
+
+        <div id="listings-grid" class="listings-grid">
+            <div class="state-box" style="grid-column:1/-1;">
+                <p>Loading listings…</p>
+            </div>
+        </div>
+
+        <div class="pagination" id="pagination" style="display:none;"></div>
+    </div>
+
+    <!-- Become seller modal -->
+    <div id="become-seller-modal" class="modal-overlay" style="display:none;">
+        <div class="modal">
+            <h2>&#9650; Start selling your vehicles</h2>
+            <p>
+                Upgrade your account to also become a seller — it's free and instant.
+                You'll keep your buyer access and gain the ability to list vehicles for sale,
+                upload documents, and receive offers.
+            </p>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeBecomeSellerModal()">Maybe later</button>
+                <button class="btn-primary" id="become-seller-btn" onclick="becomeSeller()">
+                    Yes, I want to sell
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ── State ─────────────────────────────────────────────────────────────────
+    let currentPage    = 1;
+    let totalPages     = 1;
+    let favourites     = JSON.parse(localStorage.getItem('vp_favourites') || '[]');
+    let isSeller       = false;
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    (async function init() {
+        const payload = PortalUtils.parseJwt(PortalUtils.getToken());
+        if (!payload) return;
+
+        // Show user name
+        const name = [payload.firstName, payload.lastName].filter(Boolean).join(' ');
+        document.getElementById('nav-name').textContent = name || payload.email;
+
+        // Check if user is already a seller
+        const roles = Array.isArray(payload.role) ? payload.role : [payload.role];
+        isSeller    = roles.includes('Seller');
+
+        updateSellerButtons();
+        await searchListings(1);
+    })();
+
+    function updateSellerButtons() {
+        document.getElementById('btn-sell-car').style.display      = isSeller ? 'inline-block' : 'none';
+        document.getElementById('btn-become-seller').style.display = isSeller ? 'none'         : 'inline-block';
+    }
+
+    // ── Search & load listings ────────────────────────────────────────────────
+    async function searchListings(page = 1) {
+        const grid = document.getElementById('listings-grid');
+        grid.innerHTML = '<div class="state-box" style="grid-column:1/-1;"><p>Loading…</p></div>';
+        document.getElementById('pagination').style.display = 'none';
+
+        const make     = document.getElementById('s-make').value.trim();
+        const model    = document.getElementById('s-model').value.trim();
+        const year     = document.getElementById('s-year').value.trim();
+        const zip      = document.getElementById('s-zip').value.trim();
+        const maxPrice = document.getElementById('s-maxprice').value.trim();
+
+        const params = new URLSearchParams({ page, pageSize: 12 });
+        if (make)     params.set('make',     make);
+        if (model)    params.set('model',    model);
+        if (year)     params.set('year',     year);
+        if (zip)      params.set('zipCode',  zip);
+        if (maxPrice) params.set('maxPrice', maxPrice);
+
+        const res = await fetch(`/api/listing?${params}`);
+        if (!res.ok) {
+            grid.innerHTML = '<div class="state-box" style="grid-column:1/-1;"><h3>Error loading listings</h3><p>Please try again.</p></div>';
+            return;
+        }
+
+        const data = await res.json();
+        currentPage = page;
+        totalPages  = data.totalPages || 1;
+
+        document.getElementById('results-count').textContent =
+            data.total ? `${data.total} vehicle${data.total !== 1 ? 's' : ''} found` : '';
+
+        if (!data.listings?.length) {
+            grid.innerHTML = `
+                <div class="state-box" style="grid-column:1/-1;">
+                    <h3>No listings found</h3>
+                    <p>Try adjusting your search filters.</p>
+                </div>`;
+            return;
+        }
+
+        grid.innerHTML = data.listings.map(l => renderCard(l)).join('');
+        renderPagination();
+    }
+
+    function clearSearch() {
+        ['s-make','s-model','s-year','s-zip','s-maxprice'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+        document.getElementById('results-label').textContent = 'All active listings';
+        searchListings(1);
+    }
+
+    // ── Render listing card ───────────────────────────────────────────────────
+    function renderCard(l) {
+        const isFav = favourites.includes(l.id);
+        return `
+        <div class="listing-card" onclick="viewListing(${l.id}, event)">
+            <div class="card-header">
+                <div>
+                    <div class="card-year-make">${esc(l.year)} · ${esc(l.make)}</div>
+                    <div class="card-model">${esc(l.model)}</div>
+                    ${l.color ? `<div style="font-size:0.75rem; color:#64748b; margin-top:2px;">${esc(l.color)}</div>` : ''}
+                </div>
+                <div class="card-price">$${Number(l.askingPrice).toLocaleString()}</div>
+            </div>
+            <div class="card-body">
+                <div class="card-meta">
+                    <span class="meta-item">&#9906; ${Number(l.mileage).toLocaleString()} mi</span>
+                    ${l.hasAccidents ? '<span class="accident-badge">&#9888; Accident history</span>' : '<span class="meta-item">&#10003; Clean history</span>'}
+                </div>
+                <div class="card-vin">VIN: ${esc(l.vin)}</div>
+                <div class="card-footer">
+                    <span class="card-location">&#9679; ${esc(l.zipCode)}</span>
+                    <button class="btn-favourite ${isFav ? 'active' : ''}"
+                            onclick="toggleFavourite(${l.id}, event)"
+                            title="${isFav ? 'Remove from favourites' : 'Save to favourites'}">
+                        ${isFav ? '&#10084;' : '&#9825;'}
+                    </button>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    // ── View listing ──────────────────────────────────────────────────────────
+    function viewListing(id, event) {
+        // Don't navigate if clicking the favourite button
+        if (event.target.closest('.btn-favourite')) return;
+        window.location.href = `/portal/listing.html?id=${id}`;
+    }
+
+    // ── Favourites ────────────────────────────────────────────────────────────
+    function toggleFavourite(id, event) {
+        event.stopPropagation();
+        const idx = favourites.indexOf(id);
+        if (idx === -1) {
+            favourites.push(id);
+            PortalUtils.toast('Saved to favourites.', 'success');
+        } else {
+            favourites.splice(idx, 1);
+            PortalUtils.toast('Removed from favourites.', 'info');
+        }
+        localStorage.setItem('vp_favourites', JSON.stringify(favourites));
+
+        // Update the heart icon
+        const btn = event.currentTarget;
+        btn.classList.toggle('active', favourites.includes(id));
+        btn.innerHTML = favourites.includes(id) ? '&#10084;' : '&#9825;';
+    }
+
+    // ── Pagination ────────────────────────────────────────────────────────────
+    function renderPagination() {
+        const el = document.getElementById('pagination');
+        if (totalPages <= 1) { el.style.display = 'none'; return; }
+
+        el.style.display = 'flex';
+
+        let html = `<button class="page-btn" onclick="searchListings(${currentPage - 1})"
+                        ${currentPage <= 1 ? 'disabled' : ''}>&#8592; Prev</button>`;
+
+        // Show up to 5 page buttons
+        const start = Math.max(1, currentPage - 2);
+        const end   = Math.min(totalPages, start + 4);
+
+        for (let i = start; i <= end; i++) {
+            html += `<button class="page-btn ${i === currentPage ? 'active' : ''}"
+                             onclick="searchListings(${i})">${i}</button>`;
+        }
+
+        html += `<button class="page-btn" onclick="searchListings(${currentPage + 1})"
+                     ${currentPage >= totalPages ? 'disabled' : ''}>Next &#8594;</button>`;
+
+        html += `<span class="page-info">Page ${currentPage} of ${totalPages}</span>`;
+        el.innerHTML = html;
+    }
+
+    // ── Become seller modal ───────────────────────────────────────────────────
+    function openBecomeSellerModal() {
+        document.getElementById('become-seller-modal').style.display = 'flex';
+    }
+
+    function closeBecomeSellerModal() {
+        document.getElementById('become-seller-modal').style.display = 'none';
+    }
+
+    async function becomeSeller() {
+        const btn = document.getElementById('become-seller-btn');
+        btn.disabled    = true;
+        btn.textContent = 'Upgrading…';
+
+        const res = await PortalUtils.apiFetch('/api/portal/become-seller', {
+            method: 'POST'
+        });
+
+        btn.disabled    = false;
+        btn.textContent = 'Yes, I want to sell';
+
+        if (!res) return;
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            PortalUtils.toast(err.message || 'Failed to upgrade account.', 'error');
+            closeBecomeSellerModal();
+            return;
+        }
+
+        const data = await res.json();
+
+        // Save the new token with Seller role
+        PortalUtils.saveToken(data.token);
+
+        isSeller = true;
+        updateSellerButtons();
+        closeBecomeSellerModal();
+
+        PortalUtils.toast('You can now list vehicles for sale!', 'success');
+
+        // Redirect to seller dashboard after a short delay
+        setTimeout(() => {
+            window.location.href = '/seller/dashboard.html';
+        }, 1500);
+    }
+
+    // ── Helper ────────────────────────────────────────────────────────────────
+    function esc(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    </script>
+</body>
+</html>

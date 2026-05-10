@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using VehiclePortal.Data;
 using VehiclePortal.Models;
+using VehiclePortal.Services;
 
 namespace VehiclePortal.Controllers
 {
@@ -16,15 +17,18 @@ namespace VehiclePortal.Controllers
     {
         private readonly AppDbContext _db;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IAuditService _audit;
         private readonly ILogger<ListingController> _logger;
 
         public ListingController(
             AppDbContext db,
             UserManager<ApplicationUser> userManager,
+            IAuditService audit,
             ILogger<ListingController> logger)
         {
             _db = db;
             _userManager = userManager;
+            _audit = audit;
             _logger = logger;
         }
 
@@ -101,7 +105,7 @@ namespace VehiclePortal.Controllers
         }
 
         // ── GET /api/listing/{id} ─────────────────────────────────────────────
-        [HttpGet("{id}")]
+        [HttpGet("{id:int}")]
         [AllowAnonymous]
         public async Task<IActionResult> GetListing(int id)
         {
@@ -190,7 +194,7 @@ namespace VehiclePortal.Controllers
             var sellerId = GetCurrentUserId();
             if (sellerId == null) return Unauthorized();
 
-            // ── 1. Idempotency check ──────────────────────────────────────────
+            // ── Idempotency check ─────────────────────────────────────────────
             var idempotencyKey = Request.Headers["X-Idempotency-Key"].ToString();
             if (!string.IsNullOrWhiteSpace(idempotencyKey))
             {
@@ -199,20 +203,13 @@ namespace VehiclePortal.Controllers
                                            && i.UserId == sellerId
                                            && i.ExpiresAt > DateTime.UtcNow);
                 if (existing != null)
-                {
-                    _logger.LogInformation(
-                        "[Listing] Idempotent response for key {Key}", idempotencyKey);
                     return StatusCode(existing.StatusCode,
                         JsonSerializer.Deserialize<object>(existing.ResponsePayload));
-                }
             }
 
-            // ── 2. Validate VIN ───────────────────────────────────────────────
             if (!IsValidVin(request.Vin))
                 return BadRequest(new { message = "Invalid VIN. Must be 17 characters, no I O Q." });
 
-            // ── 3. Duplicate VIN check ────────────────────────────────────────
-            // Prevent the same seller from creating two active listings for the same VIN
             var duplicateByThisSeller = await _db.Listings
                 .AnyAsync(l => l.Vin == request.Vin.ToUpper()
                             && l.SellerId == sellerId
@@ -222,7 +219,6 @@ namespace VehiclePortal.Controllers
             if (duplicateByThisSeller)
                 return Conflict(new { message = "You already have an active listing for this VIN." });
 
-            // Prevent any active listing for this VIN across all sellers
             var activeListingExists = await _db.Listings
                 .AnyAsync(l => l.Vin == request.Vin.ToUpper()
                             && l.Status == ListingStatus.Active);
@@ -230,7 +226,6 @@ namespace VehiclePortal.Controllers
             if (activeListingExists)
                 return Conflict(new { message = "This VIN already has an active listing on the marketplace." });
 
-            // ── 4. Create listing + outbox in ONE transaction ─────────────────
             var listing = new Listing
             {
                 SellerId = sellerId,
@@ -254,7 +249,7 @@ namespace VehiclePortal.Controllers
                 EventType = "listing.created",
                 Payload = JsonSerializer.Serialize(new
                 {
-                    ListingId = 0, // updated after SaveChanges
+                    ListingId = 0,
                     Vin = listing.Vin,
                     SellerId = sellerId
                 }),
@@ -267,7 +262,6 @@ namespace VehiclePortal.Controllers
             _db.OutboxMessages.Add(outboxMessage);
             await _db.SaveChangesAsync();
 
-            // Update payload with real listing ID
             outboxMessage.Payload = JsonSerializer.Serialize(new
             {
                 ListingId = listing.Id,
@@ -276,7 +270,17 @@ namespace VehiclePortal.Controllers
             });
             await _db.SaveChangesAsync();
 
-            // ── 5. Store idempotency result ───────────────────────────────────
+            // Audit log
+            await _audit.LogAsync(
+                userId: sellerId,
+                userEmail: GetCurrentUserEmail(),
+                userRole: "Seller",
+                action: AuditActions.ListingCreated,
+                entityType: "Listing",
+                entityId: listing.Id.ToString(),
+                details: $"Created draft listing for {listing.Year} {listing.Make} {listing.Model} VIN: {listing.Vin}",
+                ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
+
             var responsePayload = new { listing.Id, message = "Draft listing created." };
 
             if (!string.IsNullOrWhiteSpace(idempotencyKey))
@@ -298,7 +302,7 @@ namespace VehiclePortal.Controllers
         }
 
         // ── PUT /api/listing/{id} ─────────────────────────────────────────────
-        [HttpPut("{id}")]
+        [HttpPut("{id:int}")]
         [Authorize(Policy = "SellerOnly")]
         public async Task<IActionResult> UpdateListing(int id, [FromBody] UpdateListingRequest? request)
         {
@@ -317,29 +321,32 @@ namespace VehiclePortal.Controllers
             if (listing.Status == ListingStatus.Sold)
                 return BadRequest(new { message = "Cannot edit a sold listing." });
 
-            if (!string.IsNullOrWhiteSpace(request.Color))
-                listing.Color = request.Color.Trim();
-            if (request.Mileage.HasValue)
-                listing.Mileage = request.Mileage.Value;
-            if (request.HasAccidents.HasValue)
-                listing.HasAccidents = request.HasAccidents.Value;
-            if (request.AccidentDetails != null)
-                listing.AccidentDetails = request.AccidentDetails.Trim();
-            if (!string.IsNullOrWhiteSpace(request.ZipCode))
-                listing.ZipCode = request.ZipCode.Trim();
-            if (request.AskingPrice.HasValue)
-                listing.AskingPrice = request.AskingPrice.Value;
-            if (request.Description != null)
-                listing.Description = request.Description.Trim();
+            if (!string.IsNullOrWhiteSpace(request.Color)) listing.Color = request.Color.Trim();
+            if (request.Mileage.HasValue) listing.Mileage = request.Mileage.Value;
+            if (request.HasAccidents.HasValue) listing.HasAccidents = request.HasAccidents.Value;
+            if (request.AccidentDetails != null) listing.AccidentDetails = request.AccidentDetails.Trim();
+            if (!string.IsNullOrWhiteSpace(request.ZipCode)) listing.ZipCode = request.ZipCode.Trim();
+            if (request.AskingPrice.HasValue) listing.AskingPrice = request.AskingPrice.Value;
+            if (request.Description != null) listing.Description = request.Description.Trim();
 
             listing.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
+
+            await _audit.LogAsync(
+                userId: sellerId,
+                userEmail: GetCurrentUserEmail(),
+                userRole: "Seller",
+                action: AuditActions.ListingUpdated,
+                entityType: "Listing",
+                entityId: listing.Id.ToString(),
+                details: $"Updated listing for {listing.Year} {listing.Make} {listing.Model}",
+                ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
 
             return Ok(new { message = "Listing updated." });
         }
 
         // ── POST /api/listing/{id}/publish ────────────────────────────────────
-        [HttpPost("{id}/publish")]
+        [HttpPost("{id:int}/publish")]
         [Authorize(Policy = "SellerOnly")]
         public async Task<IActionResult> PublishListing(int id)
         {
@@ -359,7 +366,6 @@ namespace VehiclePortal.Controllers
             listing.VinLocked = true;
             listing.UpdatedAt = DateTime.UtcNow;
 
-            // Outbox event for listing published
             _db.OutboxMessages.Add(new OutboxMessage
             {
                 EventType = "listing.published",
@@ -376,13 +382,23 @@ namespace VehiclePortal.Controllers
 
             await _db.SaveChangesAsync();
 
+            await _audit.LogAsync(
+                userId: sellerId,
+                userEmail: GetCurrentUserEmail(),
+                userRole: "Seller",
+                action: AuditActions.ListingPublished,
+                entityType: "Listing",
+                entityId: listing.Id.ToString(),
+                details: $"Published listing for {listing.Year} {listing.Make} {listing.Model} VIN: {listing.Vin}",
+                ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
+
             _logger.LogInformation("[Listing] Published {Id} VIN {Vin}", id, listing.Vin);
 
             return Ok(new { message = "Listing published successfully." });
         }
 
         // ── DELETE /api/listing/{id} ──────────────────────────────────────────
-        [HttpDelete("{id}")]
+        [HttpDelete("{id:int}")]
         [Authorize(Policy = "SellerOnly")]
         public async Task<IActionResult> DeleteListing(int id)
         {
@@ -420,12 +436,25 @@ namespace VehiclePortal.Controllers
 
             await _db.SaveChangesAsync();
 
+            await _audit.LogAsync(
+                userId: sellerId,
+                userEmail: GetCurrentUserEmail(),
+                userRole: "Seller",
+                action: AuditActions.ListingDeleted,
+                entityType: "Listing",
+                entityId: listing.Id.ToString(),
+                details: $"Deleted listing for {listing.Year} {listing.Make} {listing.Model} VIN: {listing.Vin}",
+                ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
+
             return Ok(new { message = "Listing deleted." });
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
         private string? GetCurrentUserId() =>
             User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
+
+        private string GetCurrentUserEmail() =>
+            User.Claims.FirstOrDefault(c => c.Type == "unique_name")?.Value ?? "unknown";
 
         private static bool IsValidVin(string vin)
         {

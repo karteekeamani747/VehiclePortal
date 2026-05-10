@@ -17,6 +17,7 @@ namespace VehiclePortal.Controllers
     {
         private readonly AppDbContext _db;
         private readonly IFileStorage _storage;
+        private readonly IAuditService _audit;
         private readonly ILogger<DocumentController> _logger;
 
         private static readonly string[] AllowedContentTypes =
@@ -33,10 +34,12 @@ namespace VehiclePortal.Controllers
         public DocumentController(
             AppDbContext db,
             IFileStorage storage,
+            IAuditService audit,
             ILogger<DocumentController> logger)
         {
             _db = db;
             _storage = storage;
+            _audit = audit;
             _logger = logger;
         }
 
@@ -80,7 +83,7 @@ namespace VehiclePortal.Controllers
             if (!AllowedContentTypes.Contains(file.ContentType.ToLower()))
                 return BadRequest(new { message = "Only PDF and image files are allowed." });
 
-            // ── 3. Compute MD5 hash for duplicate detection ───────────────────
+            // ── 3. Compute MD5 hash ───────────────────────────────────────────
             string fileHash;
             byte[] fileBytes;
 
@@ -91,16 +94,11 @@ namespace VehiclePortal.Controllers
                 fileHash = Convert.ToHexString(MD5.HashData(fileBytes)).ToLower();
             }
 
-            // Only block if the EXACT same file still exists (not deleted)
             var duplicate = await _db.Documents
                 .FirstOrDefaultAsync(d => d.FileHash == fileHash
                                        && d.UploadedBy == uploaderId);
             if (duplicate != null)
             {
-                _logger.LogWarning(
-                    "[Document] Duplicate upload detected. Hash {Hash} already exists as Doc {Id}",
-                    fileHash, duplicate.Id);
-
                 return Conflict(new
                 {
                     message = "This file has already been uploaded.",
@@ -120,7 +118,7 @@ namespace VehiclePortal.Controllers
                     return NotFound(new { message = "Listing not found." });
             }
 
-            // ── 5. Save file to storage ───────────────────────────────────────
+            // ── 5. Save file ──────────────────────────────────────────────────
             var extension = Path.GetExtension(file.FileName).ToLower();
             var storedName = $"{Guid.NewGuid()}{extension}";
 
@@ -174,7 +172,18 @@ namespace VehiclePortal.Controllers
             });
             await _db.SaveChangesAsync();
 
-            // ── 7. Store idempotency result ───────────────────────────────────
+            // ── 7. Audit log ──────────────────────────────────────────────────
+            await _audit.LogAsync(
+                userId: uploaderId,
+                userEmail: GetCurrentUserEmail(),
+                userRole: "Seller",
+                action: AuditActions.DocumentUploaded,
+                entityType: "Document",
+                entityId: document.Id.ToString(),
+                details: $"Uploaded {file.FileName} ({file.Length} bytes){(listingId.HasValue ? $" linked to listing #{listingId}" : "")}",
+                ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
+
+            // ── 8. Store idempotency result ───────────────────────────────────
             var responsePayload = new
             {
                 document.Id,
@@ -206,8 +215,6 @@ namespace VehiclePortal.Controllers
         }
 
         // ── GET /api/document/mydocuments ─────────────────────────────────────
-        // Returns ALL documents uploaded by the logged-in seller,
-        // both linked and unlinked to listings.
         [HttpGet("mydocuments")]
         [Authorize(Policy = "SellerOnly")]
         public async Task<IActionResult> GetMyDocuments(
@@ -344,12 +351,20 @@ namespace VehiclePortal.Controllers
             document.ListingId = request.ListingId;
             await _db.SaveChangesAsync();
 
+            await _audit.LogAsync(
+                userId: uploaderId,
+                userEmail: GetCurrentUserEmail(),
+                userRole: "Seller",
+                action: AuditActions.DocumentLinked,
+                entityType: "Document",
+                entityId: document.Id.ToString(),
+                details: $"Linked document {document.FileName} to listing #{request.ListingId}",
+                ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
+
             return Ok(new { message = "Document linked to listing." });
         }
 
         // ── DELETE /api/document/{id} ─────────────────────────────────────────
-        // Seller can delete their own documents.
-        // SuperAdmin can delete any document.
         [HttpDelete("{id:int}")]
         [Authorize(Policy = "MarketplaceUser")]
         public async Task<IActionResult> DeleteDocument(int id)
@@ -359,8 +374,6 @@ namespace VehiclePortal.Controllers
 
             var isSuperAdmin = User.IsInRole("SuperAdmin");
 
-            // SuperAdmin can delete any document
-            // Seller can only delete their own
             var document = isSuperAdmin
                 ? await _db.Documents.FirstOrDefaultAsync(d => d.Id == id)
                 : await _db.Documents.FirstOrDefaultAsync(d => d.Id == id
@@ -369,12 +382,21 @@ namespace VehiclePortal.Controllers
             if (document == null)
                 return NotFound(new { message = "Document not found." });
 
-            // Delete physical file from storage
-            await _storage.DeleteAsync(document.FilePath);
+            var fileName = document.FileName;
 
-            // Remove DB record — MD5 hash gone so same file can be re-uploaded
+            await _storage.DeleteAsync(document.FilePath);
             _db.Documents.Remove(document);
             await _db.SaveChangesAsync();
+
+            await _audit.LogAsync(
+                userId: userId,
+                userEmail: GetCurrentUserEmail(),
+                userRole: isSuperAdmin ? "SuperAdmin" : "Seller",
+                action: AuditActions.DocumentDeleted,
+                entityType: "Document",
+                entityId: id.ToString(),
+                details: $"Deleted document: {fileName}",
+                ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
 
             _logger.LogInformation(
                 "[Document] Deleted document {Id} by {UserId}", id, userId);
@@ -404,8 +426,12 @@ namespace VehiclePortal.Controllers
             return File(stream, document.ContentType, document.FileName);
         }
 
+        // ── Helpers ───────────────────────────────────────────────────────────
         private string? GetCurrentUserId() =>
             User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
+
+        private string GetCurrentUserEmail() =>
+            User.Claims.FirstOrDefault(c => c.Type == "unique_name")?.Value ?? "unknown";
     }
 
     public class UploadDocumentRequest

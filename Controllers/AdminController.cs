@@ -17,17 +17,20 @@ namespace VehiclePortal.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly AppDbContext _db;
         private readonly IFileStorage _storage;
+        private readonly IAuditService _audit;
         private readonly ILogger<AdminController> _logger;
 
         public AdminController(
             UserManager<ApplicationUser> userManager,
             AppDbContext db,
             IFileStorage storage,
+            IAuditService audit,
             ILogger<AdminController> logger)
         {
             _userManager = userManager;
             _db = db;
             _storage = storage;
+            _audit = audit;
             _logger = logger;
         }
 
@@ -122,11 +125,15 @@ namespace VehiclePortal.Controllers
 
             await _userManager.AddToRoleAsync(user, request.Role);
 
-            await WriteAuditAsync(
+            await _audit.LogAsync(
+                userId: GetCurrentUserId() ?? "system",
+                userEmail: GetCurrentUserEmail(),
+                userRole: "SuperAdmin",
                 action: AuditActions.UserCreated,
                 entityType: "User",
                 entityId: user.Id,
-                details: $"Created {request.Role} account for {user.Email}");
+                details: $"Created {request.Role} account for {user.Email}",
+                ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
 
             _logger.LogInformation("[Admin] Created {Role}: {Email}", request.Role, user.Email);
 
@@ -140,15 +147,124 @@ namespace VehiclePortal.Controllers
             });
         }
 
+        // ── PUT /api/admin/users/{id} ─────────────────────────────────────────
+        // Edit user details and roles
+        [HttpPut("users/{id}")]
+        public async Task<IActionResult> UpdateUser(string id, [FromBody] UpdateUserRequest? request)
+        {
+            if (request == null)
+                return BadRequest(new { message = "Request body is required." });
+
+            var callerId = GetCurrentUserId();
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            var currentRoles = await _userManager.GetRolesAsync(user);
+            var changes = new List<string>();
+
+            // Update name
+            if (!string.IsNullOrWhiteSpace(request.FirstName) && request.FirstName != user.FirstName)
+            {
+                changes.Add($"FirstName: {user.FirstName} → {request.FirstName}");
+                user.FirstName = request.FirstName.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.LastName) && request.LastName != user.LastName)
+            {
+                changes.Add($"LastName: {user.LastName} → {request.LastName}");
+                user.LastName = request.LastName.Trim();
+            }
+
+            // Update email
+            if (!string.IsNullOrWhiteSpace(request.Email) && request.Email != user.Email)
+            {
+                var emailExists = await _userManager.FindByEmailAsync(request.Email);
+                if (emailExists != null && emailExists.Id != id)
+                    return Conflict(new { message = "Email already in use by another account." });
+
+                changes.Add($"Email: {user.Email} → {request.Email}");
+                user.Email = request.Email.Trim();
+                user.UserName = request.Email.Trim();
+            }
+
+            // Update roles
+            if (request.Roles != null && request.Roles.Length > 0)
+            {
+                var validRoles = new[] { "SuperAdmin", "Seller", "Buyer" };
+                var invalidRoles = request.Roles.Except(validRoles).ToList();
+                if (invalidRoles.Any())
+                    return BadRequest(new { message = $"Invalid roles: {string.Join(", ", invalidRoles)}" });
+
+                // Block SuperAdmin from removing their own SuperAdmin role
+                if (callerId == id &&
+                    currentRoles.Contains("SuperAdmin") &&
+                    !request.Roles.Contains("SuperAdmin"))
+                    return BadRequest(new
+                    {
+                        message = "You cannot remove your own SuperAdmin role."
+                    });
+
+                // Remove roles no longer in the list
+                var rolesToRemove = currentRoles.Except(request.Roles).ToList();
+                if (rolesToRemove.Any())
+                {
+                    await _userManager.RemoveFromRolesAsync(user, rolesToRemove);
+                    changes.Add($"Removed roles: {string.Join(", ", rolesToRemove)}");
+                }
+
+                // Add new roles
+                var rolesToAdd = request.Roles.Except(currentRoles).ToList();
+                if (rolesToAdd.Any())
+                {
+                    await _userManager.AddToRolesAsync(user, rolesToAdd);
+                    changes.Add($"Added roles: {string.Join(", ", rolesToAdd)}");
+                }
+
+                // Update the Role property on the user
+                user.Role = string.Join(", ", request.Roles);
+            }
+
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                var errors = string.Join(" ", updateResult.Errors.Select(e => e.Description));
+                return BadRequest(new { message = errors });
+            }
+
+            if (changes.Any())
+            {
+                await _audit.LogAsync(
+                    userId: callerId ?? "system",
+                    userEmail: GetCurrentUserEmail(),
+                    userRole: "SuperAdmin",
+                    action: AuditActions.UserUpdated,
+                    entityType: "User",
+                    entityId: user.Id,
+                    details: $"Updated user {user.Email}: {string.Join("; ", changes)}",
+                    ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
+            }
+
+            var updatedRoles = await _userManager.GetRolesAsync(user);
+
+            return Ok(new
+            {
+                user.Id,
+                user.FirstName,
+                user.LastName,
+                user.Email,
+                user.IsActive,
+                Roles = updatedRoles,
+                message = "User updated successfully. Role changes take effect on next login."
+            });
+        }
+
         // ── DELETE /api/admin/users/{id} ──────────────────────────────────────
-        // Soft delete — sets IsActive = false
         [HttpDelete("users/{id}")]
         public async Task<IActionResult> DeactivateUser(string id)
         {
-            var callerEmail = User.Identity?.Name;
-            var caller = callerEmail != null
-                ? await _userManager.FindByEmailAsync(callerEmail)
-                : null;
+            var callerId = GetCurrentUserId();
+            var caller = callerId != null ? await _userManager.FindByIdAsync(callerId) : null;
 
             if (caller?.Id == id)
                 return BadRequest(new { message = "You cannot deactivate your own account." });
@@ -164,11 +280,15 @@ namespace VehiclePortal.Controllers
             user.DeactivatedAt = DateTime.UtcNow;
             await _userManager.UpdateAsync(user);
 
-            await WriteAuditAsync(
+            await _audit.LogAsync(
+                userId: callerId ?? "system",
+                userEmail: GetCurrentUserEmail(),
+                userRole: "SuperAdmin",
                 action: AuditActions.UserDeactivated,
                 entityType: "User",
                 entityId: user.Id,
-                details: $"Deactivated account: {user.Email}");
+                details: $"Deactivated account: {user.Email}",
+                ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
 
             _logger.LogInformation("[Admin] Deactivated user: {Email}", user.Email);
 
@@ -176,7 +296,6 @@ namespace VehiclePortal.Controllers
         }
 
         // ── GET /api/admin/documents ──────────────────────────────────────────
-        // SuperAdmin can see ALL documents across all users with filters.
         [HttpGet("documents")]
         public async Task<IActionResult> GetAllDocuments(
             [FromQuery] string? uploadedBy = null,
@@ -191,16 +310,12 @@ namespace VehiclePortal.Controllers
 
             if (!string.IsNullOrWhiteSpace(uploadedBy))
                 query = query.Where(d => d.UploadedBy == uploadedBy);
-
             if (ocrStatus.HasValue)
                 query = query.Where(d => d.OcrStatus == ocrStatus.Value);
-
             if (type.HasValue)
                 query = query.Where(d => d.Type == type.Value);
-
             if (from.HasValue)
                 query = query.Where(d => d.UploadedAt >= from.Value);
-
             if (to.HasValue)
                 query = query.Where(d => d.UploadedAt <= to.Value);
 
@@ -240,7 +355,6 @@ namespace VehiclePortal.Controllers
         }
 
         // ── DELETE /api/admin/documents/{id} ──────────────────────────────────
-        // SuperAdmin can delete any document.
         [HttpDelete("documents/{id:int}")]
         public async Task<IActionResult> DeleteDocument(int id)
         {
@@ -248,9 +362,20 @@ namespace VehiclePortal.Controllers
             if (document == null)
                 return NotFound(new { message = "Document not found." });
 
+            var fileName = document.FileName;
             await _storage.DeleteAsync(document.FilePath);
             _db.Documents.Remove(document);
             await _db.SaveChangesAsync();
+
+            await _audit.LogAsync(
+                userId: GetCurrentUserId() ?? "system",
+                userEmail: GetCurrentUserEmail(),
+                userRole: "SuperAdmin",
+                action: AuditActions.DocumentDeleted,
+                entityType: "Document",
+                entityId: id.ToString(),
+                details: $"SuperAdmin deleted document: {fileName}",
+                ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
 
             _logger.LogInformation("[Admin] Deleted document {Id}", id);
 
@@ -272,16 +397,12 @@ namespace VehiclePortal.Controllers
 
             if (!string.IsNullOrWhiteSpace(userId))
                 query = query.Where(a => a.UserId == userId);
-
             if (!string.IsNullOrWhiteSpace(action))
                 query = query.Where(a => a.Action == action);
-
             if (!string.IsNullOrWhiteSpace(entityType))
                 query = query.Where(a => a.EntityType == entityType);
-
             if (from.HasValue)
                 query = query.Where(a => a.CreatedAt >= from.Value);
-
             if (to.HasValue)
                 query = query.Where(a => a.CreatedAt <= to.Value);
 
@@ -304,7 +425,6 @@ namespace VehiclePortal.Controllers
         }
 
         // ── GET /api/admin/dlq ────────────────────────────────────────────────
-        // View dead letter queue messages
         [HttpGet("dlq")]
         public async Task<IActionResult> GetDeadLetterMessages(
             [FromQuery] bool includeReplayed = false,
@@ -312,12 +432,10 @@ namespace VehiclePortal.Controllers
             [FromQuery] int pageSize = 20)
         {
             var query = _db.DeadLetterMessages.AsQueryable();
-
             if (!includeReplayed)
                 query = query.Where(d => !d.IsReplayed);
 
             var total = await query.CountAsync();
-
             var messages = await query
                 .OrderByDescending(d => d.CreatedAt)
                 .Skip((page - 1) * pageSize)
@@ -328,7 +446,6 @@ namespace VehiclePortal.Controllers
         }
 
         // ── POST /api/admin/dlq/{id}/replay ───────────────────────────────────
-        // Replay a dead letter message by putting it back in the outbox
         [HttpPost("dlq/{id:int}/replay")]
         public async Task<IActionResult> ReplayDeadLetter(int id)
         {
@@ -339,7 +456,6 @@ namespace VehiclePortal.Controllers
             if (dlq.IsReplayed)
                 return BadRequest(new { message = "Message has already been replayed." });
 
-            // Put back in outbox for retry
             _db.OutboxMessages.Add(new OutboxMessage
             {
                 EventType = dlq.EventType,
@@ -351,7 +467,6 @@ namespace VehiclePortal.Controllers
 
             dlq.IsReplayed = true;
             dlq.ReplayedAt = DateTime.UtcNow;
-
             await _db.SaveChangesAsync();
 
             _logger.LogInformation(
@@ -361,33 +476,12 @@ namespace VehiclePortal.Controllers
             return Ok(new { message = "Message queued for replay." });
         }
 
-        // ── Audit helper ──────────────────────────────────────────────────────
-        private async Task WriteAuditAsync(
-            string action,
-            string entityType,
-            string entityId,
-            string? details = null)
-        {
-            var callerEmail = User.Identity?.Name ?? "system";
-            var caller = await _userManager.FindByEmailAsync(callerEmail);
-            var callerRoles = caller != null
-                ? await _userManager.GetRolesAsync(caller)
-                : new List<string>();
+        // ── Helpers ───────────────────────────────────────────────────────────
+        private string? GetCurrentUserId() =>
+            User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
 
-            _db.AuditLogs.Add(new AuditLog
-            {
-                UserId = caller?.Id ?? "system",
-                UserEmail = callerEmail,
-                UserRole = string.Join(", ", callerRoles),
-                Action = action,
-                EntityType = entityType,
-                EntityId = entityId,
-                Details = details,
-                IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-            });
-
-            await _db.SaveChangesAsync();
-        }
+        private string GetCurrentUserEmail() =>
+            User.Claims.FirstOrDefault(c => c.Type == "unique_name")?.Value ?? "unknown";
     }
 
     public class CreateUserRequest
@@ -397,5 +491,13 @@ namespace VehiclePortal.Controllers
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string Role { get; set; } = string.Empty;
+    }
+
+    public class UpdateUserRequest
+    {
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Email { get; set; }
+        public string[]? Roles { get; set; }
     }
 }
