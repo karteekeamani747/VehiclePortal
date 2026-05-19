@@ -123,6 +123,14 @@ builder.Services.AddSingleton<VehiclePortal.Services.RabbitMqPublisher>();
 // Outbox worker — polls every 10s and publishes pending events to RabbitMQ
 builder.Services.AddHostedService<VehiclePortal.Workers.OutboxWorker>();
 
+// OCR service — swap TesseractOcrService for AwsTextractOcrService in production
+builder.Services.AddScoped<VehiclePortal.Services.IOcrService,
+                            VehiclePortal.Services.TesseractOcrService>();
+
+// OCR worker — listens to doc.uploaded queue and processes documents
+builder.Services.AddHostedService<VehiclePortal.Workers.OcrWorker>();
+
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {

@@ -1162,11 +1162,15 @@
                     <td>${ocrBadge(d.ocrStatus)}</td>
                     <td>
                         ${d.extractedVin
-                    ? `<span class="vin-tag">${esc(d.extractedVin)}</span>`
-                    : '<span class="meta">—</span>'}
+                                ? `<span class="vin-tag">${esc(d.extractedVin)}</span>`
+                                : '<span class="meta">—</span>'}
                     </td>
                     <td class="meta">${PortalUtils.formatDate(d.uploadedAt)}</td>
-                    <td style="text-align:right;">
+                    <td style="text-align:right; display:flex; gap:0.4rem; justify-content:flex-end;">
+                        ${d.ocrStatus === 2 ? `
+                        <button class="btn-success" onclick="prefillListing(${d.id})">
+                            + Create listing
+                        </button>` : ''}
                         <button class="btn-danger" onclick="deleteDocument(${d.id}, '${esc(d.fileName)}')">
                             Delete
                         </button>
@@ -1192,6 +1196,35 @@
 
             PortalUtils.toast('Document deleted. You can now re-upload it.', 'success');
             loadRecentDocuments();
+        }
+
+        async function prefillListing(documentId) {
+            const res = await PortalUtils.apiFetch(`/api/listing/prefill/${documentId}`);
+            if (!res || !res.ok) {
+                PortalUtils.toast('Could not load OCR data.', 'error');
+                return;
+            }
+
+            const data = await res.json();
+
+            // Open the create listing modal
+            openCreateModal();
+
+            // Pre-fill with extracted data
+            if (data.extractedVin) {
+                document.getElementById('m-vin').value = data.extractedVin;
+            }
+            if (data.make) {
+                document.getElementById('m-make').value = data.make;
+            }
+            if (data.model) {
+                document.getElementById('m-model').value = data.model;
+            }
+            if (data.year) {
+                document.getElementById('m-year').value = data.year;
+            }
+
+            PortalUtils.toast('Form pre-filled from document. Please review and complete.', 'info');
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────

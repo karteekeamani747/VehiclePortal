@@ -463,7 +463,58 @@ namespace VehiclePortal.Controllers
             if (vin.Length != 17) return false;
             return vin.All(c => char.IsLetterOrDigit(c) && c != 'I' && c != 'O' && c != 'Q');
         }
+        // ── GET /api/listing/prefill/{documentId} ────────────────────────────────────
+        // Returns OCR extracted data from a document so the seller can
+        // pre-fill the listing creation form without typing manually.
+        // Only returns data if OCR is complete and document belongs to seller.
+        [HttpGet("prefill/{documentId:int}")]
+        [Authorize(Policy = "SellerOnly")]
+        public async Task<IActionResult> GetPrefillData(int documentId)
+        {
+            var sellerId = GetCurrentUserId();
+            if (sellerId == null) return Unauthorized();
+
+            var document = await _db.Documents
+                .FirstOrDefaultAsync(d => d.Id == documentId
+                                       && d.UploadedBy == sellerId);
+
+            if (document == null)
+                return NotFound(new { message = "Document not found." });
+
+            if (document.OcrStatus != OcrStatus.Completed)
+                return BadRequest(new
+                {
+                    message = "OCR has not completed for this document yet.",
+                    ocrStatus = document.OcrStatus.ToString()
+                });
+
+            if (string.IsNullOrWhiteSpace(document.ExtractedData))
+                return Ok(new
+                {
+                    message = "OCR completed but no vehicle data was extracted.",
+                    extractedVin = document.ExtractedVin
+                });
+
+            // Deserialize the extracted data JSON
+            var extracted = System.Text.Json.JsonSerializer.Deserialize<ExtractedVehicleData>(
+                document.ExtractedData,
+                new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+            return Ok(new
+            {
+                documentId = document.Id,
+                extractedVin = extracted?.Vin,
+                make = extracted?.Make,
+                model = extracted?.Model,
+                year = extracted?.Year,
+                message = "Data extracted from document. Please review before publishing."
+            });
+        }
     }
+
 
     public class CreateListingRequest
     {
@@ -489,5 +540,14 @@ namespace VehiclePortal.Controllers
         public string? ZipCode { get; set; }
         public decimal? AskingPrice { get; set; }
         public string? Description { get; set; }
+    }
+
+    // Helper class for deserializing OCR data
+    public class ExtractedVehicleData
+    {
+        public string? Vin { get; set; }
+        public string? Make { get; set; }
+        public string? Model { get; set; }
+        public int? Year { get; set; }
     }
 }
